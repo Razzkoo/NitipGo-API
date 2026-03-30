@@ -12,14 +12,18 @@ class PaymentBooster extends Model
     protected $fillable = [
         'traveler_id',
         'booster_id',
-        'external_reference',
         'amount',
+        'unique_code',
         'fee',
-        'total_paid',
         'payment_method',
         'payment_channel',
-        'transaction_code',
+        'account_number',
+        'account_holder',
+        'proof_image',
+        'payment_reference',
+        'reject_reason',
         'status',
+        'confirmed_by',
         'paid_at',
         'expired_at'
     ];

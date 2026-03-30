@@ -39,10 +39,8 @@ class AuthController extends Controller
     {
         try {
             if (!$request->has('code')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Login cancelled by user'
-                ], 400);
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+                return redirect("{$frontendUrl}/login?error=google_cancelled");
             }
 
             $googleUser = Socialite::driver('google')
@@ -52,20 +50,29 @@ class AuthController extends Controller
             $user = User::where('email', $googleUser->email)->first();
 
             if ($user && $user->status !== 'active') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Account is ' . $user->status
-                ], 403);
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+                return redirect("{$frontendUrl}/login?error=account_{$user->status}");
             }
 
             if (!$user) {
-                $user = User::create([
-                    'name'     => $googleUser->name,
-                    'email'    => $googleUser->email,
-                    'password' => Hash::make(\Illuminate\Support\Str::random(16)),
-                    'role'     => 'customer',
-                    'status'   => 'active'
+                $existingRequest = \App\Models\UserRequest::where('email', $googleUser->email)->first();
+
+                if ($existingRequest) {
+                    $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+                    return redirect("{$frontendUrl}/login?error=pending_approval");
+                }
+
+                \App\Models\UserRequest::create([
+                    'name'             => $googleUser->name,
+                    'email'            => $googleUser->email,
+                    'phone'            => null,
+                    'password'         => Hash::make(\Illuminate\Support\Str::random(16)),
+                    'requested_role'   => 'customer',
+                    'status_requested' => 'pending',
                 ]);
+
+                $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+                return redirect("{$frontendUrl}/login?error=pending_approval");
             }
 
             $user->tokens()->delete();
@@ -73,19 +80,14 @@ class AuthController extends Controller
             $accessToken  = $user->createAccessToken('google_login', ['*']);
             $refreshToken = $user->createRefreshToken('google_login');
 
-            return response()->json([
-                'success'       => true,
-                'access_token'  => $accessToken->token,
-                'refresh_token' => $refreshToken->token,
-                'user'          => new UserResource($user)
-            ]);
+            // Redirect to frontend
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+            return redirect("{$frontendUrl}/auth/google/callback?access_token={$accessToken->plainTextToken}&refresh_token={$refreshToken->plainTextToken}");
 
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Google login failed',
-                'error'   => $e->getMessage()
-            ], 500);
+            $frontendUrl = env('FRONTEND_URL', 'http://localhost:5173');
+            $errorMsg = urlencode($e->getMessage());
+            return redirect("{$frontendUrl}/login?error=google_failed&msg={$errorMsg}");
         }
     }
 
@@ -117,13 +119,28 @@ class AuthController extends Controller
         }
 
         if (!$user) {
-            $user = User::create([
-                'name'     => $googleData['name'] ?? $googleData['email'],
-                'email'    => $googleData['email'],
-                'password' => Hash::make(\Illuminate\Support\Str::random(16)),
-                'role'     => 'customer',
-                'status'   => 'active'
+            $existingRequest = \App\Models\UserRequest::where('email', $googleData['email'])->first();
+
+            if ($existingRequest) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun sedang menunggu persetujuan admin.',
+                ], 403);
+            }
+
+            \App\Models\UserRequest::create([
+                'name'             => $googleData['name'] ?? $googleData['email'],
+                'email'            => $googleData['email'],
+                'phone'            => null,
+                'password'         => Hash::make(\Illuminate\Support\Str::random(16)),
+                'requested_role'   => 'customer',
+                'status_requested' => 'pending',
             ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun sedang menunggu persetujuan admin.',
+            ], 403);
         }
 
         $user->tokens()->delete();
@@ -133,8 +150,8 @@ class AuthController extends Controller
 
         return response()->json([
             'success'       => true,
-            'access_token'  => $accessToken->token,
-            'refresh_token' => $refreshToken->token,
+            'access_token'  => $accessToken->plainTextToken,
+            'refresh_token' => $refreshToken->plainTextToken,
             'user'          => new UserResource($user)
         ]);
     }
@@ -207,7 +224,7 @@ class AuthController extends Controller
 
         $key = 'login:' . $request->ip() . ':' . $request->email;
 
-        if (RateLimiter::tooManyAttempts($key, 5)) {
+        if (RateLimiter::tooManyAttempts($key, 7)) {
             $seconds = RateLimiter::availableIn($key);
             return response()->json([
                 'success' => false,
@@ -218,7 +235,7 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            RateLimiter::hit($key, 900);
+            RateLimiter::hit($key, 60);
             return response()->json([
                 'success' => false,
                 'message' => 'Email atau password salah',
@@ -280,8 +297,8 @@ class AuthController extends Controller
             'message' => 'Login success',
             'data'    => [
                 'user'          => new UserResource($user),
-                'access_token'  => $accessToken->token,
-                'refresh_token' => $refreshToken->token,
+                'access_token'  => $accessToken->plainTextToken,
+                'refresh_token' => $refreshToken->plainTextToken,
             ],
         ]);
     }
@@ -298,21 +315,22 @@ class AuthController extends Controller
                     Rule::unique('traveler_requests', 'email'),
                 ],
                 'phone'           => [
-                    'nullable',
+                    'required',
+                    'string',
                     Rule::unique('travelers', 'phone'),
                     Rule::unique('traveler_requests', 'phone'),
                 ],
                 'password'        => 'required|string|min:8|confirmed',
-                'city'            => 'nullable|string|max:255',
-                'province'        => 'nullable|string|max:255',
-                'address'         => 'nullable|string',
-                'birth_date'      => 'nullable|date',
-                'gender'          => 'nullable|in:male,female',
-                'ktp_number'      => 'nullable|string|max:20',
-                'ktp_photo'       => 'nullable|file|image|max:2048',
-                'selfie_with_ktp' => 'nullable|file|image|max:2048',
-                'pass_photo'      => 'nullable|file|image|max:2048',
-                'sim_card_photo'  => 'nullable|file|image|max:2048',
+                'city'            => 'required|string|max:255',
+                'province'        => 'required|string|max:255',
+                'address'         => 'required|string',
+                'birth_date'      => 'required|date',
+                'gender'          => 'required|in:male,female',
+                'ktp_number'      => 'required|string|max:20',
+                'ktp_photo'       => 'required|file|image|max:2048',
+                'selfie_with_ktp' => 'required|file|image|max:2048',
+                'pass_photo'      => 'required|file|image|max:2048',
+                'sim_card_photo'  => 'required|file|image|max:2048',
             ]);
 
             $existingRequest = TravelerRequest::where('email', $validated['email'])->first();
@@ -334,18 +352,18 @@ class AuthController extends Controller
             TravelerRequest::create([
                 'name'             => $validated['name'],
                 'email'            => $validated['email'],
-                'phone'            => $validated['phone'] ?? null,
+                'phone'            => $validated['phone'],
                 'password'         => Hash::make($validated['password']),
-                'city'             => $validated['city'] ?? null,
-                'province'         => $validated['province'] ?? null,
-                'address'          => $validated['address'] ?? null,
-                'birth_date'       => $validated['birth_date'] ?? null,
-                'gender'           => $validated['gender'] ?? null,
-                'ktp_number'       => $validated['ktp_number'] ?? null,
-                'ktp_photo'        => $validated['ktp_photo'] ?? null,
-                'selfie_with_ktp'  => $validated['selfie_with_ktp'] ?? null,
-                'pass_photo'       => $validated['pass_photo'] ?? null,
-                'sim_card_photo'   => $validated['sim_card_photo'] ?? null,
+                'city'             => $validated['city'],
+                'province'         => $validated['province'],
+                'address'          => $validated['address'],
+                'birth_date'       => $validated['birth_date'],
+                'gender'           => $validated['gender'],
+                'ktp_number'       => $validated['ktp_number'],
+                'ktp_photo'        => $validated['ktp_photo'],
+                'selfie_with_ktp'  => $validated['selfie_with_ktp'],
+                'pass_photo'       => $validated['pass_photo'],
+                'sim_card_photo'   => $validated['sim_card_photo'],
                 'status_requested' => 'pending',
             ]);
 
@@ -380,7 +398,7 @@ class AuthController extends Controller
 
         $key = 'login_traveler:' . $request->ip() . ':' . $request->email;
 
-        if (RateLimiter::tooManyAttempts($key, 5)) {
+        if (RateLimiter::tooManyAttempts($key, 7)) {
             $seconds = RateLimiter::availableIn($key);
             return response()->json([
                 'success' => false,
@@ -391,7 +409,7 @@ class AuthController extends Controller
         $traveler = Traveler::where('email', $request->email)->first();
 
         if (!$traveler || !Hash::check($request->password, $traveler->password)) {
-            RateLimiter::hit($key, 900);
+            RateLimiter::hit($key, 60);
             return response()->json([
                 'success' => false,
                 'message' => 'Email atau password salah',
@@ -426,8 +444,131 @@ class AuthController extends Controller
             'message' => 'Login success',
             'data'    => [
                 'traveler'      => new TravelerResource($traveler),
-                'access_token'  => $accessToken->token,
-                'refresh_token' => $refreshToken->token,
+                'access_token'  => $accessToken->plainTextToken,
+                'refresh_token' => $refreshToken->plainTextToken,
+            ],
+        ]);
+    }
+
+    // UNIFIED LOGIN (Customer + Traveler)
+    public function login(Request $request)
+    {
+        try {
+            $request->validate([
+                'email'    => 'required|email',
+                'password' => 'required|string',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validasi gagal',
+                'errors'  => $e->errors(),
+            ], 422);
+        }
+
+        $key = 'login:' . $request->ip() . ':' . $request->email;
+
+        if (RateLimiter::tooManyAttempts($key, 7)) {
+            $seconds = RateLimiter::availableIn($key);
+            return response()->json([
+                'success' => false,
+                'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
+            ], 429);
+        }
+
+        // Cek di tabel users dulu
+        $user = User::where('email', $request->email)->first();
+        $traveler = null;
+
+        // Kalau tidak ada di users, cek di tabel travelers
+        if (!$user) {
+            $traveler = Traveler::where('email', $request->email)->first();
+        }
+
+        $account = $user ?? $traveler;
+
+        // Email tidak ditemukan atau password salah
+        if (!$account || !Hash::check($request->password, $account->password)) {
+            RateLimiter::hit($key, 60);
+            return response()->json([
+                'success' => false,
+                'message' => 'Email atau password salah',
+            ], 401);
+        }
+
+        RateLimiter::clear($key);
+
+        // Cek maintenance mode
+        $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
+        if ($maintenance == '1') {
+            if (!($user && $user->role === 'admin')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
+                ], 503);
+            }
+        }
+
+        // Cek status akun
+        if ($account->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun tidak aktif',
+            ], 403);
+        }
+
+        // Cek role user (customer/admin saja)
+        if ($user && !in_array($user->role, ['customer', 'admin'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akun tidak memiliki akses',
+            ], 403);
+        }
+
+        // Buat token
+        $account->tokens()->delete();
+        $tokenName    = $traveler ? 'traveler_app' : 'customer_app';
+        $accessToken  = $account->createAccessToken($tokenName, ['*']);
+        $refreshToken = $account->createRefreshToken($tokenName);
+
+        // Login activity (hanya untuk user)
+        if ($user) {
+            $ip        = $request->ip();
+            $userAgent = $request->userAgent();
+
+            $isNewDevice = !LoginActivity::where('user_id', $user->id)
+                ->where('ip_address', $ip)
+                ->where('status', 'success')
+                ->exists();
+
+            LoginActivity::create([
+                'user_id'    => $user->id,
+                'ip_address' => $ip,
+                'user_agent' => $userAgent,
+                'location'   => $this->getLocationFromIp($ip),
+                'status'     => 'success',
+            ]);
+
+            if ($isNewDevice) {
+                $user->notify(new NewDeviceLoginNotification($ip, $userAgent));
+            }
+        }
+
+        // Response
+        $isTraveler = $traveler !== null;
+        $role       = $isTraveler ? 'traveler' : $account->role;
+        $resource   = $isTraveler
+            ? new TravelerResource($account)
+            : new UserResource($account);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Login success',
+            'data'    => [
+                'user'          => $resource,
+                'role'          => $role,
+                'access_token'  => $accessToken->plainTextToken,
+                'refresh_token' => $refreshToken->plainTextToken,
             ],
         ]);
     }
@@ -437,7 +578,7 @@ class AuthController extends Controller
     {
         $key = 'forgot_password:' . $request->ip();
 
-        if (RateLimiter::tooManyAttempts($key, 3)) {
+        if (RateLimiter::tooManyAttempts($key, 7)) {
             $seconds = RateLimiter::availableIn($key);
             return response()->json([
                 'success' => false,
@@ -445,7 +586,7 @@ class AuthController extends Controller
             ], 429);
         }
 
-        RateLimiter::hit($key, 300);
+        RateLimiter::hit($key, 60);
 
         $request->validate(['email' => 'required|email']);
 
@@ -557,13 +698,9 @@ class AuthController extends Controller
             'refresh_token' => 'required|string',
         ]);
 
-        $hashed = hash('sha256', $request->refresh_token);
+        $token = PersonalAccessToken::findToken($request->refresh_token);
 
-        $token = PersonalAccessToken::where('token', $hashed)
-            ->where('is_refresh', true)
-            ->first();
-
-        if (!$token) {
+        if (!$token || !in_array('refresh', $token->abilities)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Refresh token tidak valid',
@@ -579,7 +716,6 @@ class AuthController extends Controller
         }
 
         $user = $token->tokenable;
-
         $token->delete();
 
         $accessToken     = $user->createAccessToken('api', ['*']);
@@ -587,8 +723,8 @@ class AuthController extends Controller
 
         return response()->json([
             'success'       => true,
-            'access_token'  => $accessToken->token,
-            'refresh_token' => $newRefreshToken->token,
+            'access_token'  => $accessToken->plainTextToken,
+            'refresh_token' => $newRefreshToken->plainTextToken,
         ]);
     }
 

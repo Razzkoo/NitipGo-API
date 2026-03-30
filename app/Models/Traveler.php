@@ -18,6 +18,7 @@ class Traveler extends Authenticatable
         'email',
         'password',
         'phone',
+        'role',
         'city',
         'province',
         'address',
@@ -28,10 +29,13 @@ class Traveler extends Authenticatable
         'selfie_with_ktp',
         'pass_photo',
         'sim_card_photo',
+        'profile_photo',
         'status',
         'email_verified',
         'phone_verified',
-        'email_verified_at'
+        'email_verified_at',
+        'rejection_reason',
+        'rejection_solution'
     ];
 
     protected $hidden = [
@@ -46,28 +50,15 @@ class Traveler extends Authenticatable
         'email_verified_at' => 'datetime'
     ];
 
-    // create access token
+    // Access Token (Short lived & Long lived)
     public function createAccessToken(string $device = 'api', array $abilities = ['*'])
     {
-        return $this->tokens()->create([
-            'name' => $device,
-            'token' => hash('sha256', Str::random(40)),
-            'abilities' => $abilities,
-            'expires_at' => now()->addMinutes(15),
-            'is_refresh' => false,
-        ]);
+        return $this->createToken($device, $abilities, now()->addMinutes(15));
     }
 
-    // create refresh token
     public function createRefreshToken(string $device = 'api')
     {
-        return $this->tokens()->create([
-            'name' => $device . '_refresh',
-            'token' => hash('sha256', Str::random(64)),
-            'abilities' => ['refresh'],
-            'expires_at' => now()->addDays(7),
-            'is_refresh' => true,
-        ]);
+        return $this->createToken($device . '_refresh', ['refresh'], now()->addDays(7));
     }
 
     //relation

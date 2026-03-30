@@ -14,6 +14,7 @@ class TravelerResource extends JsonResource
             'name'            => $this->name,
             'email'           => $this->email,
             'phone'           => $this->phone,
+            'role'            => 'traveler',
             'city'            => $this->city,
             'province'        => $this->province,
             'address'         => $this->address,

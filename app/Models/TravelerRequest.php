@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Hash;
 
 class TravelerRequest extends Model
 {
@@ -39,17 +38,13 @@ class TravelerRequest extends Model
         'approved_at' => 'datetime'
     ];
 
-    // Mutator untuk hash password
-    public function setPasswordAttribute($value)
-    {
-        $this->attributes['password'] = Hash::make($value);
-    }
+    // HAPUS mutator setPasswordAttribute — password sudah di-hash di controller
 
-    //relation
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');
     }
+
     public function traveler()
     {
         return $this->belongsTo(Traveler::class);

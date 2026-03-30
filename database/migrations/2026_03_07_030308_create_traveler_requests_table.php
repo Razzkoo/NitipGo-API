@@ -37,6 +37,11 @@ return new class extends Migration
             $table->string('sim_card_photo');
             $table->enum('status_requested',['pending','approved','rejected'])->default('pending');
             $table->timestamp('approved_at')->nullable();
+
+            // Action after request
+            $table->text('rejection_reason')->nullable();
+            $table->text('rejection_solution')->nullable();
+
             $table->timestamps();
         });
     }

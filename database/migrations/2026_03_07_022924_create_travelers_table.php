@@ -14,6 +14,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('password');
             $table->string('phone')->unique();
+            $table->string('role')->default('traveler');
             $table->string('city');
             $table->string('province');
             $table->text('address');
@@ -24,6 +25,7 @@ return new class extends Migration
             $table->string('selfie_with_ktp');
             $table->string('pass_photo');
             $table->string('sim_card_photo');
+            $table->string('profile_photo')->nullable();
             $table->enum('status',['active', 'non_active'])->nullable();
             $table->rememberToken();
             $table->boolean('email_verified')->default(false);

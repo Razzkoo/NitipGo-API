@@ -25,6 +25,16 @@ class UserSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+        User::updateOrCreate(
+            ['email' => 'reman@gmail.com'],
+            [
+                'name' => 'Reman Fauzi Faturrahman',
+                'phone' => '081392176321',
+                'password' => Hash::make('123'),
+                'role' => 'admin',
+                'status' => 'active',
+            ]
+        );
 
         //customer
         User::updateOrCreate(

@@ -12,15 +12,21 @@ class Payment extends Model
     protected $fillable = [
         'transaction_id',
         'user_id',
+        'traveler_id',
         'payment_method',
         'payment_channel',
+        'account_number',
+        'account_holder',
         'amount',
-        'fee',
+        'unique_code',
         'total_paid',
+        'fee',
         'payment_status',
+        'proof_image',
         'payment_reference',
+        'reject_reason',
         'paid_at',
-        'expired_at'
+        'expired_at',
     ];
 
     protected $casts = [

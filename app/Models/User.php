@@ -23,7 +23,9 @@ class User extends Authenticatable
         'address',
         'role',
         'status',
-        'profile_photo'
+        'profile_photo',
+        'rejection_reason',
+        'rejection_solution'
     ];
 
 
@@ -36,28 +38,15 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
     ];
 
-    // create access token (short lived)
+    // Access Token (Short lived & Long lived)
     public function createAccessToken(string $device = 'api', array $abilities = ['*'])
     {
-        return $this->tokens()->create([
-            'name' => $device,
-            'token' => hash('sha256', Str::random(40)),
-            'abilities' => $abilities,
-            'expires_at' => now()->addMinutes(15),
-            'is_refresh' => false,
-        ]);
+        return $this->createToken($device, $abilities, now()->addMinutes(15));
     }
 
-    // create refresh token (long lived)
     public function createRefreshToken(string $device = 'api')
     {
-        return $this->tokens()->create([
-            'name' => $device . '_refresh',
-            'token' => hash('sha256', Str::random(64)),
-            'abilities' => ['refresh'],
-            'expires_at' => now()->addDays(7),
-            'is_refresh' => true,
-        ]);
+        return $this->createToken($device . '_refresh', ['refresh'], now()->addDays(7));
     }
 
     //relation
