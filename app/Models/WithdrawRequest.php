@@ -16,6 +16,7 @@ class WithdrawRequest extends Model
         'fee',
         'withdraw_status',
         'note',
+        'processed_by',
         'processed_at'
     ];
 
@@ -33,5 +34,10 @@ class WithdrawRequest extends Model
     public function payoutAccount()
     {
         return $this->belongsTo(PayoutAccount::class);
+    }
+
+    public function processedBy()
+    {
+        return $this->belongsTo(User::class, 'processed_by');
     }
 }

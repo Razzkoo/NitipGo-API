@@ -46,4 +46,9 @@ class Payment extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function traveler()
+    {
+        return $this->belongsTo(Traveler::class);
+    }
 }

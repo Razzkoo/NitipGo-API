@@ -113,4 +113,9 @@ class Traveler extends Authenticatable
     {
         return $this->hasMany(Rating::class, 'traveler_id');
     }
+
+    public function loginActivities()
+    {
+        return $this->hasMany(LoginActivity::class);
+    }
 }

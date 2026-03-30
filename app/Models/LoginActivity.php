@@ -11,6 +11,7 @@ class LoginActivity extends Model
 
     protected $fillable = [
         'user_id',
+        'traveler_id',
         'ip_address',
         'user_agent',
         'location',
@@ -20,5 +21,10 @@ class LoginActivity extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function traveler()
+    {
+        return $this->belongsTo(Traveler::class);
     }
 }

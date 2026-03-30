@@ -25,6 +25,7 @@ return new class extends Migration
             $table->boolean('two_factor_enabled')->default(false);
             $table->timestamps();
         });
+
     }
 
     public function down(): void

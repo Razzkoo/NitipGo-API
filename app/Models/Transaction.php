@@ -24,7 +24,7 @@ class Transaction extends Model
         'destination_address',
         'notes',
         'description',
-        'heavy',
+        'weight',
         'commission',
         'shipping_price',
         'price',
@@ -40,7 +40,8 @@ class Transaction extends Model
         'item_price' => 'decimal:2',
         'commission' => 'decimal:2',
         'shipping_price' => 'decimal:2',
-        'price' => 'decimal:2'
+        'price' => 'decimal:2',
+        'weight' => 'decimal:2'
     ];
 
     public function traveler()

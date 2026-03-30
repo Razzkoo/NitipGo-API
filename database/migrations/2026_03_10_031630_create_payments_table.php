@@ -16,24 +16,25 @@ return new class extends Migration
             $table->foreignId('user_id')
                 ->constrained('users')
                 ->cascadeOnDelete();
-            $table->unsignedBigInteger('traveler_id');
+            $table->foreignId('traveler_id')
+                ->constrained('travelers')
+                ->cascadeOnDelete();
             $table->enum('payment_method', ['transfer_bank', 'e_wallet'])->default('transfer_bank');
             $table->string('payment_channel')->nullable();
             $table->string('account_number')->nullable();
-            $table->string('account_holder')->nullable(); 
+            $table->string('account_holder')->nullable();
             $table->decimal('amount', 12, 2);
-            $table->integer('unique_code')->nullable();  
+            $table->integer('unique_code')->nullable();
             $table->decimal('total_paid', 12, 2)->default(0);
             $table->decimal('fee', 12, 2)->default(0);
             $table->enum('payment_status', ['pending', 'paid', 'failed', 'expired', 'refunded'])->default('pending');
-            $table->string('proof_image')->nullable();   
+            $table->string('proof_image')->nullable();
             $table->string('payment_reference')->unique();
             $table->text('reject_reason')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->timestamp('expired_at')->nullable();
             $table->timestamps();
 
-            $table->foreign('traveler_id')->references('id')->on('travelers')->cascadeOnDelete();
             $table->unique('transaction_id');
         });
     }

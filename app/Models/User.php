@@ -91,4 +91,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(Payment::class, 'user_id');
     }
+
+    public function loginActivities()
+    {
+        return $this->hasMany(LoginActivity::class);
+    }
 }

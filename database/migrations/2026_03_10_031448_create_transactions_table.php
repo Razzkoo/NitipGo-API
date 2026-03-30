@@ -37,7 +37,7 @@ return new class extends Migration
             $table->text('destination_address')->nullable();
             $table->text('notes')->nullable();
             $table->text('description')->nullable();
-            $table->unsignedSmallInteger('heavy');
+            $table->decimal('weight', 8, 2);
             $table->decimal('commission', 12, 2)->default(0);
             $table->decimal('shipping_price', 12, 2)->default(0);
             $table->decimal('price', 12, 2);

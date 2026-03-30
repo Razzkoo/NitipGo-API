@@ -26,8 +26,8 @@ return new class extends Migration
             $table->enum('reporter_role',['traveler','customer']);
             $table->string('title');
             $table->text('description')->nullable();
-            $table->enum('dispute_priority',['rendah','sedang','tinggi'])->default('sedang');
-            $table->enum('dispute_status',['baru','ditinjau','selesai'])->default('baru');
+            $table->enum('dispute_priority',['low','medium','high'])->default('medium');
+            $table->enum('dispute_status',['open','under_review','resolved'])->default('open');
             $table->text('note')->nullable();
             $table->timestamp('resolved_at')->nullable();
             $table->timestamps();
