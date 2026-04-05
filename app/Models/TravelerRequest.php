@@ -38,8 +38,6 @@ class TravelerRequest extends Model
         'approved_at' => 'datetime'
     ];
 
-    // HAPUS mutator setPasswordAttribute — password sudah di-hash di controller
-
     public function approver()
     {
         return $this->belongsTo(User::class, 'approved_by');

@@ -28,6 +28,9 @@ class Transaction extends Model
         'commission',
         'shipping_price',
         'price',
+        'payment_proof',
+        'paid_at',
+        'price_confirmed',
         'image',
         'recipient_name',
         'recipient_phone',
@@ -35,13 +38,15 @@ class Transaction extends Model
     ];
 
     protected $casts = [
-        'arrival_date' => 'date',
-        'quantity' => 'unsignedInteger',
-        'item_price' => 'decimal:2',
-        'commission' => 'decimal:2',
+        'arrival_date'   => 'date',
+        'quantity'       => 'integer',
+        'item_price'     => 'decimal:2',
+        'commission'     => 'decimal:2',
         'shipping_price' => 'decimal:2',
-        'price' => 'decimal:2',
-        'weight' => 'decimal:2'
+        'price'          => 'decimal:2',
+        'weight'         => 'decimal:2',
+        'paid_at'         => 'datetime',
+        'price_confirmed' => 'boolean',
     ];
 
     public function traveler()
@@ -82,5 +87,9 @@ class Transaction extends Model
     public function reports()
     {
         return $this->hasMany(Report::class);
+    }
+    public function orderProcess()
+    {
+        return $this->hasOne(OrderProcess::class);
     }
 }

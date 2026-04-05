@@ -222,85 +222,92 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $key = 'login:' . $request->ip() . ':' . $request->email;
+        try {
+            $key = 'login:' . $request->ip() . ':' . $request->email;
 
-        if (RateLimiter::tooManyAttempts($key, 7)) {
-            $seconds = RateLimiter::availableIn($key);
+            if (RateLimiter::tooManyAttempts($key, 7)) {
+                $seconds = RateLimiter::availableIn($key);
+                return response()->json([
+                    'success' => false,
+                    'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
+                ], 429);
+            }
+
+            $user = User::where('email', $request->email)->first();
+
+            if (!$user || !Hash::check($request->password, $user->password)) {
+                RateLimiter::hit($key, 60);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email atau password salah',
+                ], 401);
+            }
+
+            RateLimiter::clear($key);
+
+            if (!in_array($user->role, ['customer', 'admin'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun tidak memiliki akses',
+                ], 403);
+            }
+
+            $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
+
+            if ($maintenance == '1' && $user->role !== 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
+                ], 503);
+            }
+
+            if ($user->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun tidak aktif',
+                ], 403);
+            }
+
+            $user->tokens()->delete();
+
+            $accessToken  = $user->createAccessToken('customer_app', ['*']);
+            $refreshToken = $user->createRefreshToken('customer_app');
+
+            $ip        = $request->ip();
+            $userAgent = $request->userAgent();
+
+            $isNewDevice = !LoginActivity::where('user_id', $user->id)
+                ->where('ip_address', $ip)
+                ->where('status', 'success')
+                ->exists();
+
+            LoginActivity::create([
+                'user_id'    => $user->id,
+                'ip_address' => $ip,
+                'user_agent' => $userAgent,
+                'location'   => $this->getLocationFromIp($ip),
+                'status'     => 'success',
+            ]);
+
+            if ($isNewDevice) {
+                $user->notify(new NewDeviceLoginNotification($ip, $userAgent));
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Login success',
+                'data'    => [
+                    'user'          => new UserResource($user),
+                    'access_token'  => $accessToken->plainTextToken,
+                    'refresh_token' => $refreshToken->plainTextToken,
+                ],
+            ]);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
-            ], 429);
+                'message' => 'Login gagal. ' . $e->getMessage(),
+            ], 500);
         }
-
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            RateLimiter::hit($key, 60);
-            return response()->json([
-                'success' => false,
-                'message' => 'Email atau password salah',
-            ], 401);
-        }
-
-        RateLimiter::clear($key);
-
-        if (!in_array($user->role, ['customer', 'admin'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun tidak memiliki akses',
-            ], 403);
-        }
-
-        $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
-
-        if ($maintenance == '1' && $user->role !== 'admin') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
-            ], 503);
-        }
-
-        if ($user->status !== 'active') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun tidak aktif',
-            ], 403);
-        }
-
-        $user->tokens()->delete();
-
-        $accessToken  = $user->createAccessToken('customer_app', ['*']);
-        $refreshToken = $user->createRefreshToken('customer_app');
-
-        $ip        = $request->ip();
-        $userAgent = $request->userAgent();
-
-        $isNewDevice = !LoginActivity::where('user_id', $user->id)
-            ->where('ip_address', $ip)
-            ->where('status', 'success')
-            ->exists();
-
-        LoginActivity::create([
-            'user_id'    => $user->id,
-            'ip_address' => $ip,
-            'user_agent' => $userAgent,
-            'location'   => $this->getLocationFromIp($ip),
-            'status'     => 'success',
-        ]);
-
-        if ($isNewDevice) {
-            $user->notify(new NewDeviceLoginNotification($ip, $userAgent));
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Login success',
-            'data'    => [
-                'user'          => new UserResource($user),
-                'access_token'  => $accessToken->plainTextToken,
-                'refresh_token' => $refreshToken->plainTextToken,
-            ],
-        ]);
     }
 
     // AUTH TRAVELER (REGISTER & LOGIN)
@@ -396,58 +403,65 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $key = 'login_traveler:' . $request->ip() . ':' . $request->email;
+        try {
+            $key = 'login_traveler:' . $request->ip() . ':' . $request->email;
 
-        if (RateLimiter::tooManyAttempts($key, 7)) {
-            $seconds = RateLimiter::availableIn($key);
+            if (RateLimiter::tooManyAttempts($key, 7)) {
+                $seconds = RateLimiter::availableIn($key);
+                return response()->json([
+                    'success' => false,
+                    'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
+                ], 429);
+            }
+
+            $traveler = Traveler::where('email', $request->email)->first();
+
+            if (!$traveler || !Hash::check($request->password, $traveler->password)) {
+                RateLimiter::hit($key, 60);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email atau password salah',
+                ], 401);
+            }
+
+            RateLimiter::clear($key);
+
+            $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
+
+            if ($maintenance == '1') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
+                ], 503);
+            }
+
+            if ($traveler->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun tidak aktif',
+                ], 403);
+            }
+
+            $traveler->tokens()->delete();
+
+            $accessToken  = $traveler->createAccessToken('traveler_app', ['*']);
+            $refreshToken = $traveler->createRefreshToken('traveler_app');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Login success',
+                'data'    => [
+                    'traveler'      => new TravelerResource($traveler),
+                    'access_token'  => $accessToken->plainTextToken,
+                    'refresh_token' => $refreshToken->plainTextToken,
+                ],
+            ]);
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
-            ], 429);
+                'message' => 'Login gagal. ' . $e->getMessage(),
+            ], 500);
         }
-
-        $traveler = Traveler::where('email', $request->email)->first();
-
-        if (!$traveler || !Hash::check($request->password, $traveler->password)) {
-            RateLimiter::hit($key, 60);
-            return response()->json([
-                'success' => false,
-                'message' => 'Email atau password salah',
-            ], 401);
-        }
-
-        RateLimiter::clear($key);
-
-        $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
-
-        if ($maintenance == '1') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
-            ], 503);
-        }
-
-        if ($traveler->status !== 'active') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun tidak aktif',
-            ], 403);
-        }
-
-        $traveler->tokens()->delete();
-
-        $accessToken  = $traveler->createAccessToken('traveler_app', ['*']);
-        $refreshToken = $traveler->createRefreshToken('traveler_app');
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Login success',
-            'data'    => [
-                'traveler'      => new TravelerResource($traveler),
-                'access_token'  => $accessToken->plainTextToken,
-                'refresh_token' => $refreshToken->plainTextToken,
-            ],
-        ]);
     }
 
     // UNIFIED LOGIN (Customer + Traveler)
@@ -466,111 +480,118 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $key = 'login:' . $request->ip() . ':' . $request->email;
+        try {
+            $key = 'login:' . $request->ip() . ':' . $request->email;
 
-        if (RateLimiter::tooManyAttempts($key, 7)) {
-            $seconds = RateLimiter::availableIn($key);
-            return response()->json([
-                'success' => false,
-                'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
-            ], 429);
-        }
-
-        // Cek di tabel users dulu
-        $user = User::where('email', $request->email)->first();
-        $traveler = null;
-
-        // Kalau tidak ada di users, cek di tabel travelers
-        if (!$user) {
-            $traveler = Traveler::where('email', $request->email)->first();
-        }
-
-        $account = $user ?? $traveler;
-
-        // Email tidak ditemukan atau password salah
-        if (!$account || !Hash::check($request->password, $account->password)) {
-            RateLimiter::hit($key, 60);
-            return response()->json([
-                'success' => false,
-                'message' => 'Email atau password salah',
-            ], 401);
-        }
-
-        RateLimiter::clear($key);
-
-        // Cek maintenance mode
-        $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
-        if ($maintenance == '1') {
-            if (!($user && $user->role === 'admin')) {
+            if (RateLimiter::tooManyAttempts($key, 7)) {
+                $seconds = RateLimiter::availableIn($key);
                 return response()->json([
                     'success' => false,
-                    'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
-                ], 503);
+                    'message' => "Terlalu banyak percobaan. Coba lagi dalam {$seconds} detik.",
+                ], 429);
             }
-        }
 
-        // Cek status akun
-        if ($account->status !== 'active') {
+            // Cek di tabel users dulu
+            $user = User::where('email', $request->email)->first();
+            $traveler = null;
+
+            // Kalau tidak ada di users, cek di tabel travelers
+            if (!$user) {
+                $traveler = Traveler::where('email', $request->email)->first();
+            }
+
+            $account = $user ?? $traveler;
+
+            // Email tidak ditemukan atau password salah
+            if (!$account || !Hash::check($request->password, $account->password)) {
+                RateLimiter::hit($key, 60);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email atau password salah',
+                ], 401);
+            }
+
+            RateLimiter::clear($key);
+
+            // Cek maintenance mode
+            $maintenance = SystemSetting::where('key', 'maintenance_mode')->value('value');
+            if ($maintenance == '1') {
+                if (!($user && $user->role === 'admin')) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Sistem sedang maintenance. Anda tidak bisa login.',
+                    ], 503);
+                }
+            }
+
+            // Cek status akun
+            if ($account->status !== 'active') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun tidak aktif',
+                ], 403);
+            }
+
+            // Cek role user (customer/admin saja)
+            if ($user && !in_array($user->role, ['customer', 'admin'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Akun tidak memiliki akses',
+                ], 403);
+            }
+
+            // Buat token
+            $account->tokens()->delete();
+            $tokenName    = $traveler ? 'traveler_app' : 'customer_app';
+            $accessToken  = $account->createAccessToken($tokenName, ['*']);
+            $refreshToken = $account->createRefreshToken($tokenName);
+
+            // Login activity (hanya untuk user)
+            if ($user) {
+                $ip        = $request->ip();
+                $userAgent = $request->userAgent();
+
+                $isNewDevice = !LoginActivity::where('user_id', $user->id)
+                    ->where('ip_address', $ip)
+                    ->where('status', 'success')
+                    ->exists();
+
+                LoginActivity::create([
+                    'user_id'    => $user->id,
+                    'ip_address' => $ip,
+                    'user_agent' => $userAgent,
+                    'location'   => $this->getLocationFromIp($ip),
+                    'status'     => 'success',
+                ]);
+
+                if ($isNewDevice) {
+                    $user->notify(new NewDeviceLoginNotification($ip, $userAgent));
+                }
+            }
+
+            // Response
+            $isTraveler = $traveler !== null;
+            $role       = $isTraveler ? 'traveler' : $account->role;
+            $resource   = $isTraveler
+                ? new TravelerResource($account)
+                : new UserResource($account);
+
             return response()->json([
-                'success' => false,
-                'message' => 'Akun tidak aktif',
-            ], 403);
-        }
-
-        // Cek role user (customer/admin saja)
-        if ($user && !in_array($user->role, ['customer', 'admin'])) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Akun tidak memiliki akses',
-            ], 403);
-        }
-
-        // Buat token
-        $account->tokens()->delete();
-        $tokenName    = $traveler ? 'traveler_app' : 'customer_app';
-        $accessToken  = $account->createAccessToken($tokenName, ['*']);
-        $refreshToken = $account->createRefreshToken($tokenName);
-
-        // Login activity (hanya untuk user)
-        if ($user) {
-            $ip        = $request->ip();
-            $userAgent = $request->userAgent();
-
-            $isNewDevice = !LoginActivity::where('user_id', $user->id)
-                ->where('ip_address', $ip)
-                ->where('status', 'success')
-                ->exists();
-
-            LoginActivity::create([
-                'user_id'    => $user->id,
-                'ip_address' => $ip,
-                'user_agent' => $userAgent,
-                'location'   => $this->getLocationFromIp($ip),
-                'status'     => 'success',
+                'success' => true,
+                'message' => 'Login success',
+                'data'    => [
+                    'user'          => $resource,
+                    'role'          => $role,
+                    'access_token'  => $accessToken->plainTextToken,
+                    'refresh_token' => $refreshToken->plainTextToken,
+                ],
             ]);
-
-            if ($isNewDevice) {
-                $user->notify(new NewDeviceLoginNotification($ip, $userAgent));
-            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Login gagal. ' . $e->getMessage(),
+            ], 500);
         }
-
-        // Response
-        $isTraveler = $traveler !== null;
-        $role       = $isTraveler ? 'traveler' : $account->role;
-        $resource   = $isTraveler
-            ? new TravelerResource($account)
-            : new UserResource($account);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Login success',
-            'data'    => [
-                'user'          => $resource,
-                'role'          => $role,
-                'access_token'  => $accessToken->plainTextToken,
-                'refresh_token' => $refreshToken->plainTextToken,
-            ],
-        ]);
     }
 
     // Forgot Password

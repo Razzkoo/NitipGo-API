@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\UserRequest;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Hash;
 
 class UserRequestController extends Controller
 {
@@ -76,7 +77,7 @@ class UserRequestController extends Controller
             'name'             => $validated['name'],
             'email'            => $validated['email'],
             'phone'            => $validated['phone'],
-            'password'         => $validated['password'],
+            'password'         => Hash::make($validated['password']),
             'requested_role'   => $validated['requested_role'],
             'status_requested' => 'pending',
         ]);
@@ -101,7 +102,7 @@ class UserRequestController extends Controller
             ], 409);
         }
 
-        if (User::where('phone', $userRequest->phone)->exists()) {
+        if ($userRequest->phone && User::where('phone', $userRequest->phone)->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'User dengan nomor telepon ini sudah terdaftar.',
@@ -117,11 +118,8 @@ class UserRequestController extends Controller
             'status'   => 'active',
         ]);
 
-        $userRequest->update([
-            'user_id'          => $user->id,
-            'status_requested' => 'approved',
-            'approved_at'      => now(),
-        ]);
+        // Delete user request after approve
+        $userRequest->delete();
 
         return response()->json([
             'success' => true,

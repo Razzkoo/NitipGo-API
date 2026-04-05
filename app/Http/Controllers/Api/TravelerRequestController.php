@@ -171,6 +171,7 @@ class TravelerRequestController extends Controller
             'selfie_with_ktp' => $travelerRequest->selfie_with_ktp,
             'pass_photo'      => $travelerRequest->pass_photo,
             'sim_card_photo'  => $travelerRequest->sim_card_photo,
+            'profile_photo'   => $travelerRequest->pass_photo,
             'status'          => 'active',
             'email_verified'  => false,
             'phone_verified'  => false,

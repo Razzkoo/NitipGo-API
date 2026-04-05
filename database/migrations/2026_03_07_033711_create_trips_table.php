@@ -24,7 +24,7 @@ return new class extends Migration
             $table->decimal('capacity',8,2); 
             $table->decimal('used_capacity',8,2)->default(0);
             $table->text('description')->nullable();
-            $table->enum('status',['draft','active','inactive','on_trip','completed','cancelled'])->default('draft');
+            $table->enum('status',['draft','active','inactive','on_trip','completed','cancelled', 'expired'])->default('draft');
             $table->unsignedInteger('orders_count')->default(0);
             $table->index('traveler_id');
             $table->index('status');

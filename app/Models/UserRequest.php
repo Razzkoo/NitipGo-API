@@ -27,12 +27,7 @@ class UserRequest extends Model
     protected $casts = [
         'approved_at' => 'datetime'
     ];
-
-    // Mutator untuk hash password
-    public function setPasswordAttribute($value)
-    {
-        $this->attributes['password'] = Hash::make($value);
-    }
+    
 
     //relation
     public function user()
