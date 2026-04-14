@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Rating;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -41,7 +42,8 @@ class ProfileController extends Controller
                 'stats'            => [
                     'total_trips'       => $user->trips()->count(),
                     'total_transactions'=> $user->transactions()->count(),
-                    'rating'            => round($user->ratings()->avg('rating') ?? 0, 1),
+                    'rating'             => round($user->ratings()->avg('rating') ?? 0, 1),
+                    'total_ratings'      => $user->ratings()->count(),
                     'total_withdraw'    => $user->withdrawRequests()->count(),
                 ],
             ];

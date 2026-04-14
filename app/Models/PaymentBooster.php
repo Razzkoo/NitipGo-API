@@ -13,27 +13,27 @@ class PaymentBooster extends Model
         'traveler_id',
         'booster_id',
         'amount',
-        'unique_code',
         'fee',
-        'payment_method',
+        'total_paid',
+        'snap_token',
+        'midtrans_order_id',
+        'midtrans_transaction_id',
+        'payment_type',
         'payment_channel',
-        'account_number',
-        'account_holder',
-        'proof_image',
+        'va_number',
         'payment_reference',
         'reject_reason',
         'status',
-        'confirmed_by',
         'paid_at',
-        'expired_at'
+        'expired_at',
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'fee' => 'decimal:2',
+        'amount'     => 'decimal:2',
+        'fee'        => 'decimal:2',
         'total_paid' => 'decimal:2',
-        'paid_at' => 'datetime',
-        'expired_at' => 'datetime'
+        'paid_at'    => 'datetime',
+        'expired_at' => 'datetime',
     ];
 
     public function traveler()
@@ -44,10 +44,5 @@ class PaymentBooster extends Model
     public function booster()
     {
         return $this->belongsTo(Booster::class);
-    }
-
-    public function travelerBoosters()
-    {
-        return $this->hasMany(TravelerBooster::class);
     }
 }

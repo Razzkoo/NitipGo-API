@@ -34,7 +34,8 @@ class Transaction extends Model
         'image',
         'recipient_name',
         'recipient_phone',
-        'status'
+        'status',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -45,7 +46,8 @@ class Transaction extends Model
         'shipping_price' => 'decimal:2',
         'price'          => 'decimal:2',
         'weight'         => 'decimal:2',
-        'paid_at'         => 'datetime',
+        'paid_at'        => 'datetime',
+        'cancelled_at'   => 'datetime',
         'price_confirmed' => 'boolean',
     ];
 

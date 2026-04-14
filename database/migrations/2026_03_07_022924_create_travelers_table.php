@@ -27,6 +27,7 @@ return new class extends Migration
             $table->string('sim_card_photo');
             $table->string('profile_photo')->nullable();
             $table->enum('status',['active', 'non_active'])->nullable();
+            $table->decimal('balance', 15, 2)->default(0); // add balance 
             $table->rememberToken();
             $table->boolean('email_verified')->default(false);
             $table->boolean('phone_verified')->default(false);

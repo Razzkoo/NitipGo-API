@@ -13,16 +13,16 @@ class Payment extends Model
         'transaction_id',
         'user_id',
         'traveler_id',
-        'payment_method',
+        'snap_token',
+        'midtrans_order_id',
+        'midtrans_transaction_id',
+        'payment_type',
         'payment_channel',
-        'account_number',
-        'account_holder',
+        'va_number',
         'amount',
-        'unique_code',
-        'total_paid',
         'fee',
+        'total_paid',
         'payment_status',
-        'proof_image',
         'payment_reference',
         'reject_reason',
         'paid_at',
@@ -30,11 +30,11 @@ class Payment extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'fee' => 'decimal:2',
+        'amount'     => 'decimal:2',
+        'fee'        => 'decimal:2',
         'total_paid' => 'decimal:2',
-        'paid_at' => 'datetime',
-        'expired_at' => 'datetime'
+        'paid_at'    => 'datetime',
+        'expired_at' => 'datetime',
     ];
 
     public function transaction()

@@ -14,7 +14,7 @@ return new class extends Migration
                 ->constrained('travelers')
                 ->cascadeOnDelete();
             $table->enum('payout_type',['bank','e_wallet'])->default('bank');
-            $table->enum('provider',['bca','bni','mandiri','ovo','dana','gopay']);
+            $table->string('provider', 20); // bank/e-wallet code: bca, bni, bri, mandiri, cimb, permata, ovo, dana, gopay, etc.
             $table->string('account_name');
             $table->string('account_number',50);
             $table->boolean('is_default')->default(false);

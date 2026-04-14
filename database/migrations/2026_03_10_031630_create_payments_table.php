@@ -17,25 +17,28 @@ return new class extends Migration
                 ->constrained('users')
                 ->cascadeOnDelete();
             $table->foreignId('traveler_id')
+                ->nullable()
                 ->constrained('travelers')
-                ->cascadeOnDelete();
-            $table->enum('payment_method', ['transfer_bank', 'e_wallet'])->default('transfer_bank');
-            $table->string('payment_channel')->nullable();
-            $table->string('account_number')->nullable();
-            $table->string('account_holder')->nullable();
+                ->nullOnDelete();
+
+            // Midtrans fields
+            $table->string('snap_token')->nullable();
+            $table->string('midtrans_order_id')->unique();
+            $table->string('midtrans_transaction_id')->nullable();
+            $table->string('payment_type')->nullable();      // bank_transfer, gopay, shopeepay, credit_card, qris, etc.
+            $table->string('payment_channel')->nullable();   // bca, bni, mandiri, bri, gopay, shopeepay, etc.
+            $table->string('va_number')->nullable();         // Virtual Account number from Midtrans
+
             $table->decimal('amount', 12, 2);
-            $table->integer('unique_code')->nullable();
-            $table->decimal('total_paid', 12, 2)->default(0);
             $table->decimal('fee', 12, 2)->default(0);
-            $table->enum('payment_status', ['pending', 'paid', 'failed', 'expired', 'refunded'])->default('pending');
-            $table->string('proof_image')->nullable();
+            $table->decimal('total_paid', 12, 2)->default(0);
+
+            $table->enum('payment_status', ['pending', 'paid', 'failed', 'expired', 'refunded', 'cancelled'])->default('pending');
             $table->string('payment_reference')->unique();
             $table->text('reject_reason')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->timestamp('expired_at')->nullable();
             $table->timestamps();
-
-            $table->unique('transaction_id');
         });
     }
 

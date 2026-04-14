@@ -20,6 +20,7 @@ class Report extends Model
         'dispute_priority',
         'dispute_status',
         'note',
+        'traveler_note',
         'resolved_at'
     ];
 

@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 
 class TravelerOrderController extends Controller
 {
-    // All order
     public function index(Request $request)
     {
         $traveler = $request->user();
@@ -22,6 +21,7 @@ class TravelerOrderController extends Controller
                 'pickupPoint:id,name,address,pickup_time,map_url',
                 'collectionPoint:id,name,address,collections_time,map_url',
                 'orderProcess',
+                'payment:id,transaction_id,payment_status,paid_at,amount',
             ]);
 
         if ($request->filled('status')) {
@@ -40,7 +40,6 @@ class TravelerOrderController extends Controller
         ]);
     }
 
-    // Show detail order
     public function show(Request $request, $id)
     {
         $order = Transaction::where('traveler_id', $request->user()->id)
@@ -50,6 +49,7 @@ class TravelerOrderController extends Controller
                 'pickupPoint:id,name,address,pickup_time,map_url',
                 'collectionPoint:id,name,address,collections_time,map_url',
                 'orderProcess',
+                'payment:id,transaction_id,payment_status,paid_at,amount,payment_type,payment_channel',
             ])
             ->findOrFail($id);
 
@@ -59,7 +59,10 @@ class TravelerOrderController extends Controller
         ]);
     }
 
-    // Accept order by traveler
+    /**
+     * Traveler accept order → status on_progress
+     * Create OrderProcess → step waiting_payment
+     */
     public function accept(Request $request, $id)
     {
         $order = Transaction::where('traveler_id', $request->user()->id)
@@ -68,13 +71,21 @@ class TravelerOrderController extends Controller
 
         $order->update(['status' => 'on_progress']);
 
+        // Create order process
+        OrderProcess::updateOrCreate(
+            ['transaction_id' => $order->id],
+            [
+                'step'        => 'waiting_payment',
+                'accepted_at' => now(),
+            ]
+        );
+
         return response()->json([
             'success' => true,
-            'message' => 'Order berhasil diterima.',
+            'message' => 'Order diterima. Menunggu pembayaran customer.',
         ]);
     }
 
-    // Reject order by traveler + reason
     public function reject(Request $request, $id)
     {
         $request->validate([
@@ -87,8 +98,16 @@ class TravelerOrderController extends Controller
 
         $order->update([
             'status' => 'cancelled',
-            'notes'  => $request->reason,
         ]);
+
+        OrderProcess::updateOrCreate(
+            ['transaction_id' => $order->id],
+            [
+                'step'          => 'cancelled',
+                'cancelled_at'  => now(),
+                'cancel_reason' => $request->reason,
+            ]
+        );
 
         $order->trip?->decrement('used_capacity', $order->weight);
 
@@ -99,69 +118,18 @@ class TravelerOrderController extends Controller
     }
 
     /**
-     * Update harga barang (HANYA titip-beli & on_progress)
-     * Upload struk + harga final → customer harus bayar
-     */
-    public function updatePrice(Request $request, $id)
-    {
-        $order = Transaction::where('traveler_id', $request->user()->id)
-            ->where('status', 'on_progress')
-            ->where('order_type', 'titip-beli')
-            ->findOrFail($id);
-
-        $validated = $request->validate([
-            'item_price'    => 'required|numeric|min:0',
-            'receipt_photo' => 'required|image|max:5120',
-            'price_notes'   => 'nullable|string|max:500',
-        ], [
-            'item_price.required'    => 'Harga barang wajib diisi.',
-            'receipt_photo.required' => 'Foto struk wajib diupload.',
-        ]);
-
-        $receiptPath = $request->file('receipt_photo')->store('receipts', 'public');
-
-        $originalItemPrice = $order->item_price;
-        $newItemPrice      = $validated['item_price'];
-        $newItemTotal      = $newItemPrice * $order->quantity;
-        $newTotalPrice     = $order->shipping_price + $newItemTotal;
-
-        OrderProcess::updateOrCreate(
-            ['transaction_id' => $order->id],
-            [
-                'original_item_price' => $originalItemPrice,
-                'updated_item_price'  => $newItemPrice,
-                'updated_total_price' => $newTotalPrice,
-                'receipt_photo'       => $receiptPath,
-                'price_notes'         => $validated['price_notes'] ?? null,
-                'status'              => 'waiting_payment',
-            ]
-        );
-
-        $order->update([
-            'item_price'      => $newItemPrice,
-            'price'           => $newTotalPrice,
-            'price_confirmed' => true,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Harga diperbarui. Menunggu pembayaran customer.',
-        ]);
-    }
-
-    /**
      * Update status: on_progress → on_the_way → finished
-     * titip-beli: harus price_confirmed + paid_at sebelum on_the_way
-     * kirim: langsung bisa on_the_way
+     * on_progress → on_the_way: HANYA jika sudah bayar via Midtrans
      */
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:on_progress,on_the_way,finished',
+            'status' => 'required|in:on_the_way,finished',
         ]);
 
         $order = Transaction::where('traveler_id', $request->user()->id)
             ->whereIn('status', ['on_progress', 'on_the_way'])
+            ->with(['payment', 'orderProcess'])
             ->findOrFail($id);
 
         $allowedTransitions = [
@@ -177,29 +145,93 @@ class TravelerOrderController extends Controller
             ], 422);
         }
 
-        // Cek pembayaran untuk titip-beli
+        // Cek pembayaran Midtrans sebelum mulai kirim
         if ($order->status === 'on_progress' && $request->status === 'on_the_way') {
-            if ($order->order_type === 'titip-beli') {
-                if (!$order->price_confirmed) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Update harga dan upload struk terlebih dahulu.',
-                    ], 422);
-                }
-                if (!$order->paid_at) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Menunggu pembayaran dari customer.',
-                    ], 422);
-                }
+            $payment = $order->payment;
+            if (!$payment || $payment->payment_status !== 'paid') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Customer belum melakukan pembayaran.',
+                ], 422);
             }
         }
 
         $order->update(['status' => $request->status]);
 
+        // Update order process
+        if ($request->status === 'on_the_way') {
+            $order->orderProcess?->update([
+                'step'      => 'in_delivery',
+                'shipped_at' => now(),
+            ]);
+        }
+
+        if ($request->status === 'finished') {
+            $order->orderProcess?->update([
+                'step'         => 'completed',
+                'completed_at' => now(),
+            ]);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Status order berhasil diperbarui.',
+        ]);
+    }
+
+    // Update price (titip-beli only)
+    public function updatePrice(Request $request, $id)
+    {
+        $request->validate([
+            'item_price'    => 'required|numeric|min:0',
+            'receipt_photo' => 'nullable|image|max:2048',
+            'price_notes'   => 'nullable|string|max:500',
+        ]);
+
+        $order = Transaction::where('traveler_id', $request->user()->id)
+            ->where('status', 'on_progress')
+            ->findOrFail($id);
+
+        // Upload struk
+        $receiptFile = $request->file('receipt_photo');
+
+        if (!$receiptFile) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Foto struk tidak ditemukan',
+            ], 422);
+        }
+
+        $receiptPath = $receiptFile->store('receipts', 'public');
+
+        // Hitung total baru
+        $itemPrice = (int) $request->input('item_price');
+        $originalItemPrice = $order->item_price;
+        $totalPrice = ((int)$itemPrice * (int)$order->quantity) + (int)$order->shipping_price;
+
+        // Update order
+        $order->update([
+            'item_price'      => $itemPrice,
+            'price'           => $totalPrice,
+            'price_confirmed' => true,
+        ]);
+
+        // Update order process
+        OrderProcess::updateOrCreate(
+            ['transaction_id' => $order->id],
+            [
+                'original_item_price' => $originalItemPrice,
+                'updated_item_price'  => $itemPrice,
+                'updated_total_price' => $totalPrice,
+                'receipt_photo'       => $receiptPath,
+                'price_notes'         => $request->price_notes,
+                'step'                => 'waiting_payment',
+            ]
+        );
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Harga berhasil diperbarui, menunggu pembayaran customer',
         ]);
     }
 
@@ -209,25 +241,24 @@ class TravelerOrderController extends Controller
             ->findOrFail($tripId);
 
         $orders = Transaction::where('trip_id', $trip->id)
-            ->with(['customer:id,name,phone,profile_photo', 'orderProcess'])
+            ->with(['customer:id,name,phone,profile_photo', 'payment:id,transaction_id,payment_status,paid_at'])
             ->latest()
             ->get()
             ->map(function ($order) {
                 return [
-                    'id'              => $order->id,
-                    'sku'             => $order->sku,
-                    'customer'        => $order->customer?->name ?? 'Unknown',
-                    'phone'           => $order->customer?->phone ?? '-',
-                    'avatar'          => $order->customer?->profile_photo,
-                    'item'            => $order->name,
-                    'description'     => $order->description,
-                    'order_type'      => $order->order_type,
-                    'weight'          => $order->weight . ' kg',
-                    'price'           => 'Rp ' . number_format($order->price, 0, ',', '.'),
-                    'status'          => $order->status,
-                    'price_confirmed' => $order->price_confirmed,
-                    'paid_at'         => $order->paid_at,
-                    'created_at'      => $order->created_at->format('d M Y H:i'),
+                    'id'             => $order->id,
+                    'sku'            => $order->sku,
+                    'customer'       => $order->customer?->name ?? 'Unknown',
+                    'phone'          => $order->customer?->phone ?? '-',
+                    'avatar'         => $order->customer?->profile_photo,
+                    'item'           => $order->name,
+                    'description'    => $order->description,
+                    'order_type'     => $order->order_type,
+                    'weight'         => $order->weight . ' kg',
+                    'price'          => 'Rp ' . number_format($order->price, 0, ',', '.'),
+                    'status'         => $order->status,
+                    'payment_status' => $order->payment?->payment_status ?? null,
+                    'created_at'     => $order->created_at->format('d M Y H:i'),
                 ];
             });
 

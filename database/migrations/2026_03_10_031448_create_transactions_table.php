@@ -46,7 +46,13 @@ return new class extends Migration
             $table->string('recipient_name')->nullable();
             $table->string('recipient_phone')->nullable();
 
+            // Setelah recipient_phone
+            $table->string('payment_proof')->nullable(); // bukti pembayaran
+            $table->timestamp('paid_at')->nullable();
+            $table->boolean('price_confirmed')->default(false);
+
             $table->enum('status',['pending','on_progress','on_the_way','cancelled','finished'])->default('pending');
+            $table->timestamp('cancelled_at')->nullable();
             $table->timestamps();
         });
     }

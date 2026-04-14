@@ -16,17 +16,28 @@ class TravelerTripController extends Controller
     {
         $traveler = $request->user();
 
-        // Auto nonactive trip if departure date passed
+        // Auto expire trip when estimated arrival has passed
         Trip::where('traveler_id', $traveler->id)
             ->where('status', 'active')
-            ->whereDate('departure_at', '<', now()->toDateString())
+            ->whereNotNull('estimated_arrival_at')
+            ->where('estimated_arrival_at', '<=', now()) 
             ->update(['status' => 'expired']);
 
         $trips = Trip::where('traveler_id', $traveler->id)
             ->withCount('transactions')
+            ->with('transactions:id,trip_id,weight,status')
             ->latest('departure_at')
             ->get()
             ->map(function ($trip) {
+                // Auto-sync used_capacity
+                $actualUsed = $trip->transactions
+                    ->whereNotIn('status', ['cancelled'])
+                    ->sum('weight');
+                if ((float) $trip->used_capacity !== (float) $actualUsed) {
+                    $trip->update(['used_capacity' => $actualUsed]);
+                    $trip->used_capacity = $actualUsed;
+                }
+
                 $capacityPercent = $trip->capacity > 0
                     ? round(($trip->used_capacity / $trip->capacity) * 100)
                     : 0;
@@ -63,15 +74,51 @@ class TravelerTripController extends Controller
             ->with(['pickups', 'collections', 'transactions'])
             ->findOrFail($id);
 
-        // Auto-expire 
-        if ($trip->status === 'active' && $trip->departure_at->lt(now()->startOfDay())) {
+        // Auto-expire when estimated arrival has passed
+        if ($trip->status === 'active' && $trip->departure_at->startOfDay()->lt(now()->startOfDay())) {
             $trip->update(['status' => 'expired']);
             $trip->refresh();
         }
 
+        $actualUsed = $trip->transactions
+            ->whereNotIn('status', ['cancelled'])
+            ->sum('weight');
+
+        if ((float) $trip->used_capacity !== (float) $actualUsed) {
+            $trip->update(['used_capacity' => $actualUsed]);
+            $trip->used_capacity = $actualUsed;
+        }
+
         return response()->json([
             'success' => true,
-            'data'    => $trip,
+            'data'    => [
+                'id'                   => $trip->id,
+                'code'                 => $trip->code,
+                'city'                 => $trip->city,       
+                'destination'          => $trip->destination,  
+                'departure_at'         => $trip->departure_at,  
+                'estimated_arrival_at' => $trip->estimated_arrival_at,
+                'price'                => $trip->price,
+                'capacity'             => $trip->capacity,
+                'used_capacity'        => $trip->used_capacity,
+                'description'          => $trip->description,
+                'status'               => $trip->status,
+                'is_tracking'          => $trip->is_tracking ?? false,
+                'pickups'    => $trip->pickups->map(fn($p) => [
+                    'id'          => $p->id,
+                    'name'        => $p->name,
+                    'address'     => $p->address,
+                    'pickup_time' => $p->pickup_time,
+                    'map_url'     => $p->map_url,
+                ]),
+                'collections' => $trip->collections->map(fn($c) => [
+                    'id'               => $c->id,
+                    'name'             => $c->name,
+                    'address'          => $c->address,
+                    'collections_time' => $c->collections_time,
+                    'map_url'          => $c->map_url,
+                ]),
+            ],
         ]);
     }
 

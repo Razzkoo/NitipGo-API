@@ -18,7 +18,9 @@ return new class extends Migration
                 ->cascadeOnDelete();
             $table->decimal('amount',12,2);
             $table->decimal('fee',12,2)->default(0);
-            $table->enum('withdraw_status',['pending','approved','paid','rejected'])->default('pending');
+            $table->decimal('net_amount',12,2)->default(0); // amount - fee
+            $table->enum('withdraw_status',['pending','approved','paid','rejected','failed'])->default('pending');
+            $table->string('midtrans_reference_no')->nullable(); // reference from Midtrans Iris payout
             $table->text('note')->nullable();
             $table->foreignId('processed_by')
                 ->nullable()

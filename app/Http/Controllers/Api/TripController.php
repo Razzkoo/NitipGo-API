@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Trip;
+use App\Models\TravelerBooster;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -33,9 +34,21 @@ class TripController extends Controller
                 ];
             });
 
+        // Stats
+        $totalRoutes    = $routes->count();
+        $totalTrips     = DB::table('trips')->count();
+        $activeTrips    = DB::table('trips')->where('status', 'active')->count();
+        $totalTravelers = DB::table('trips')->distinct('traveler_id')->count('traveler_id');
+
         return response()->json([
             'success' => true,
             'data'    => $routes,
+            'stats'   => [
+                'total_routes'    => $totalRoutes,
+                'total_trips'     => $totalTrips,
+                'active_trips'    => $activeTrips,
+                'total_travelers' => $totalTravelers,
+            ],
         ]);
     }
 
@@ -43,52 +56,56 @@ class TripController extends Controller
     public function available(Request $request)
     {
         $query = Trip::with(['traveler:id,name,phone,profile_photo,city', 'pickups', 'collections'])
-            ->where('status', 'active')
-            ->whereDate('departure_at', '>=', now()->toDateString());
+            ->where('status', 'active');
 
-        // Filter city
         if ($request->filled('from')) {
             $query->where('city', 'like', '%' . $request->from . '%');
         }
-
-        // Filter destination
         if ($request->filled('to')) {
             $query->where('destination', 'like', '%' . $request->to . '%');
         }
-
-        // Filter date
         if ($request->filled('date')) {
             $query->whereDate('departure_at', $request->date);
         }
 
-        $trips = $query->orderBy('departure_at', 'asc')
-            ->get()
-            ->map(function ($trip) {
-                $remaining = $trip->capacity - $trip->used_capacity;
+        // ─── Ambil traveler_id yang punya booster aktif ───────────────────
+        $boostedTravelerIds = \App\Models\TravelerBooster::where('status', 'active')
+            ->where('end_date', '>', now())
+            ->pluck('traveler_id')
+            ->toArray();
+        // ──────────────────────────────────────────────────────────────────
+
+        $trips = $query->get()
+            ->map(function ($trip) use ($boostedTravelerIds) {
+                $remaining  = $trip->capacity - $trip->used_capacity;
+                $isBoosted  = in_array($trip->traveler_id, $boostedTravelerIds);
 
                 return [
-                    'id'           => $trip->id,
-                    'code'         => $trip->code,
-                    'from'         => $trip->city,
-                    'to'           => $trip->destination,
-                    'date'         => $trip->departure_at->format('Y-m-d'),
-                    'displayDate'  => $trip->departure_at->format('d M Y'),
-                    'departureTime' => $trip->departure_at->format('H:i'),
-                    'arrivalDate'  => $trip->estimated_arrival_at?->format('d M Y'),
-                    'arrivalTime'  => $trip->estimated_arrival_at?->format('H:i'),
-                    'capacity'     => $remaining > 0 ? "{$remaining} kg tersisa" : "Penuh",
-                    'capacityRaw'  => $remaining,
-                    'pricePerKg'   => $trip->price,
-                    'price'        => 'Rp ' . number_format($trip->price, 0, ',', '.') . '/kg',
-                    'notes'        => $trip->description,
-                    'traveler'     => [
-                        'id'     => $trip->traveler->id,
-                        'name'   => $trip->traveler->name,
-                        'phone'  => $trip->traveler->phone,
-                        'photo'  => $trip->traveler->profile_photo,
-                        'city'   => $trip->traveler->city,
+                    'id'             => $trip->id,
+                    'code'           => $trip->code,
+                    'from'           => $trip->city,
+                    'to'             => $trip->destination,
+                    'date'           => $trip->departure_at->format('Y-m-d'),
+                    'displayDate'    => $trip->departure_at->format('d M Y'),
+                    'departureTime'  => $trip->departure_at->format('H:i'),
+                    'arrivalDate'    => $trip->estimated_arrival_at?->format('d M Y'),
+                    'arrivalTime'    => $trip->estimated_arrival_at?->format('H:i'),
+                    'capacity'       => $remaining > 0 ? "{$remaining} kg tersisa" : "Penuh",
+                    'capacityRaw'    => $remaining,
+                    'pricePerKg'     => $trip->price,
+                    'price'          => 'Rp ' . number_format($trip->price, 0, ',', '.') . '/kg',
+                    'notes'          => $trip->description,
+                    'canOrder'       => true,
+                    'departureAtRaw' => $trip->departure_at->toIso8601String(),
+                    'is_boosted'     => $isBoosted,
+                    'traveler'       => [
+                        'id'    => $trip->traveler->id,
+                        'name'  => $trip->traveler->name,
+                        'phone' => $trip->traveler->phone,
+                        'photo' => $trip->traveler->profile_photo,
+                        'city'  => $trip->traveler->city,
                     ],
-                    'pickup'       => $trip->pickups->first() ? [
+                    'pickup'     => $trip->pickups->first() ? [
                         'name'    => $trip->pickups->first()->name,
                         'address' => $trip->pickups->first()->address,
                         'time'    => $trip->pickups->first()->pickup_time
@@ -96,7 +113,7 @@ class TripController extends Controller
                                         : null,
                         'mapUrl'  => $trip->pickups->first()->map_url,
                     ] : null,
-                    'collection'   => $trip->collections->first() ? [
+                    'collection' => $trip->collections->first() ? [
                         'name'    => $trip->collections->first()->name,
                         'address' => $trip->collections->first()->address,
                         'time'    => $trip->collections->first()->collections_time
@@ -105,17 +122,17 @@ class TripController extends Controller
                         'mapUrl'  => $trip->collections->first()->map_url,
                     ] : null,
                 ];
-            });
+            })
+            // Sort: boosted duluan, lalu by departure_at
+            ->sortByDesc('is_boosted')
+            ->sortBy('date')
+            ->values(); // reset keys
 
-        // List
         $cities = Trip::where('status', 'active')
-            ->where('departure_at', '>=', now())
             ->select('city', 'destination')
             ->get()
             ->flatMap(fn($t) => [$t->city, $t->destination])
-            ->unique()
-            ->sort()
-            ->values();
+            ->unique()->sort()->values();
 
         return response()->json([
             'success' => true,
@@ -132,7 +149,7 @@ class TripController extends Controller
             'pickups',
             'collections',
         ])
-        ->where('status', 'active')
+        ->where('status', 'active') 
         ->findOrFail($id);
 
         $remaining = $trip->capacity - $trip->used_capacity;

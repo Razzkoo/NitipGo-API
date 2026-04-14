@@ -4,13 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Transaction;
+use App\Models\OrderProcess;
 use App\Models\Trip;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class CustomerOrderController extends Controller
 {
-    // Add new order by customer
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -21,7 +22,7 @@ class CustomerOrderController extends Controller
             'weight'               => 'required|numeric|min:0.1',
             'quantity'             => 'nullable|integer|min:1',
             'item_price'           => 'nullable|numeric|min:0',
-            'photo'                => 'nullable|image|max:5120',
+            'photo'                => 'required|image|max:5120',
             'notes'                => 'nullable|string|max:500',
             'recipient_name'       => 'nullable|required_if:order_type,kirim|string|max:255',
             'recipient_phone'      => 'nullable|required_if:order_type,kirim|string|max:20',
@@ -98,7 +99,12 @@ class CustomerOrderController extends Controller
             'recipient_name'      => $validated['recipient_name'] ?? null,
             'recipient_phone'     => $validated['recipient_phone'] ?? null,
             'status'              => 'pending',
-            'price_confirmed'     => false,
+        ]);
+
+        // Buat order process
+        OrderProcess::create([
+            'transaction_id' => $transaction->id,
+            'step'           => 'waiting_acceptance',
         ]);
 
         $trip->increment('used_capacity', $weight);
@@ -110,7 +116,7 @@ class CustomerOrderController extends Controller
         ], 201);
     }
 
-    // All order 
+
     public function index(Request $request)
     {
         $orders = Transaction::where('customer_id', $request->user()->id)
@@ -118,6 +124,9 @@ class CustomerOrderController extends Controller
                 'traveler:id,name,profile_photo',
                 'trip:id,city,destination',
                 'orderProcess',
+                'payment:id,transaction_id,payment_status,paid_at,snap_token',
+                'pickupPoint:id,name,address,pickup_time,map_url',
+                'rating:id,transaction_id,rating,review',
             ])
             ->latest()
             ->paginate(15);
@@ -128,13 +137,13 @@ class CustomerOrderController extends Controller
         ]);
     }
 
-    // Show detail order
+
     public function show(Request $request, $id)
     {
         $order = Transaction::where('customer_id', $request->user()->id)
             ->with([
                 'traveler:id,name,phone,email,profile_photo,city',
-                'traveler.payoutAccounts',
+
                 'trip:id,city,destination,departure_at,estimated_arrival_at,price',
                 'pickupPoint',
                 'collectionPoint',
@@ -147,46 +156,11 @@ class CustomerOrderController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $order,
+            'price_confirmed' => (bool) $order->price_confirmed,
         ]);
     }
 
-    /**
-     * Customer upload bukti pembayaran
-     * Hanya untuk titip-beli yang sudah price_confirmed
-     */
-    public function uploadPayment(Request $request, $id)
-    {
-        $order = Transaction::where('customer_id', $request->user()->id)
-            ->where('status', 'on_progress')
-            ->where('order_type', 'titip-beli')
-            ->where('price_confirmed', true)
-            ->whereNull('paid_at')
-            ->findOrFail($id);
 
-        $request->validate([
-            'payment_proof' => 'required|image|max:5120',
-        ], [
-            'payment_proof.required' => 'Bukti pembayaran wajib diupload.',
-            'payment_proof.image'    => 'File harus berupa gambar.',
-        ]);
-
-        $path = $request->file('payment_proof')->store('payments', 'public');
-
-        $order->update([
-            'payment_proof' => $path,
-            'paid_at'       => now(),
-        ]);
-
-        // Update order_process status
-        $order->orderProcess?->update(['status' => 'paid']);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Bukti pembayaran berhasil diupload.',
-        ]);
-    }
-
-    // Cancelled order by customer (pending only)
     public function cancel(Request $request, $id)
     {
         $order = Transaction::where('customer_id', $request->user()->id)
@@ -194,6 +168,13 @@ class CustomerOrderController extends Controller
             ->findOrFail($id);
 
         $order->update(['status' => 'cancelled']);
+
+        $order->orderProcess?->update([
+            'step'          => 'cancelled',
+            'cancelled_at'  => now(),
+            'cancel_reason' => 'Dibatalkan oleh customer',
+        ]);
+
         $order->trip?->decrement('used_capacity', $order->weight);
 
         return response()->json([

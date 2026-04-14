@@ -15,17 +15,29 @@ use App\Http\Controllers\Api\TripTrackingController;
 use App\Http\Controllers\Api\TripController;
 use App\Http\Controllers\Api\CustomerOrderController;
 use App\Http\Controllers\Api\TravelerOrderController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\RatingController;
+use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\BoosterController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\HelpController;
+use App\Http\Controllers\Api\AdvertisementController;
 
-/*
-|--------------------------------------------------------------------------
-| AUTH API
-|--------------------------------------------------------------------------
-*/
+// Public 
 Route::get('/settings/public', [SystemSettingController::class, 'publicSettings']);
+Route::get('/faqs', [HelpController::class, 'faqs']);
 
 Route::post('/user-requests',     [UserRequestController::class, 'store']);
 Route::post('/traveler-requests', [TravelerRequestController::class, 'store']);
 
+Route::get('/advertisements/live',            [AdvertisementController::class, 'live']);
+Route::get('/advertisements/packages',        [AdvertisementController::class, 'packages']);
+Route::post('/advertisements/sync-by-order',  [AdvertisementController::class, 'syncByOrder']);  
+Route::post('/advertisements/{id}/sync',       [AdvertisementController::class, 'syncPayment']);
+Route::post('/advertisements/payment/notify',  [AdvertisementController::class, 'handleNotification']);
+Route::post('/advertisements',                 [AdvertisementController::class, 'store']);
+
+// Auth
 Route::prefix('auth')->group(function () {
 
     Route::get('/google', [AuthController::class, 'googleRedirect'])->middleware('throttle:5,1');
@@ -92,7 +104,43 @@ Route::middleware(['multi.auth', 'role:admin'])->prefix('admin')->group(function
     Route::patch('/traveler-requests/{id}/reject',  [TravelerRequestController::class, 'reject']);
     Route::delete('/traveler-requests/{id}',        [TravelerRequestController::class, 'destroy']);
 
+    // Booster management admin
+    Route::get('/boosters',                          [BoosterController::class, 'adminPlans']);
+    Route::post('/boosters',                         [BoosterController::class, 'store']);
+    Route::put('/boosters/{id}',                     [BoosterController::class, 'update']);
+    Route::patch('/boosters/{id}/toggle',            [BoosterController::class, 'toggleActive']);
+    Route::get('/boosters/monitoring',               [BoosterController::class, 'adminMonitoring']);
+    Route::patch('/boosters/traveler/{id}/status',   [BoosterController::class, 'updateStatus']);
+
+    // Wallet management admin
+    Route::get('/wallet/booster', [BoosterController::class, 'adminWallet']);
+    Route::get('/wallet/advertisements', [AdvertisementController::class, 'adminWallet']);
+
+    // Get traveler trip data
     Route::get('/routes', [TripController::class, 'routes']);
+    // Rating management admin
+    Route::get('/ratings', [RatingController::class, 'adminIndex']);
+    // Transactions list admin
+    Route::get('/transactions', [PaymentController::class, 'adminIndex']); 
+    // Report management 
+    Route::get('/disputes',                  [ReportController::class, 'adminIndex']);
+    Route::patch('/disputes/{id}/review',    [ReportController::class, 'markInReview']);
+    Route::patch('/disputes/{id}/resolve',   [ReportController::class, 'resolve']);
+
+    // Help management admin
+    Route::get('/help/tickets',              [HelpController::class, 'adminIndex']);
+    Route::post('/help/tickets/{id}/reply',  [HelpController::class, 'reply']);
+    Route::patch('/help/tickets/{id}/resolve', [HelpController::class, 'resolve']);
+    Route::get('/help/faqs',                 [HelpController::class, 'adminFaqs']);
+    Route::post('/help/faqs',                [HelpController::class, 'storeFaq']);
+    Route::put('/help/faqs/{id}',            [HelpController::class, 'updateFaq']);
+    Route::delete('/help/faqs/{id}',         [HelpController::class, 'destroyFaq']);
+
+    // Advertisement management 
+    Route::get('/advertisements',                    [AdvertisementController::class, 'adminIndex']);
+    Route::delete('/advertisements/{id}',            [AdvertisementController::class, 'destroy']);
+    Route::patch('/advertisements/{id}/approve',     [AdvertisementController::class, 'approve']);
+    Route::patch('/advertisements/{id}/reject',      [AdvertisementController::class, 'reject']);
 });
 
 // TRAVELER
@@ -103,6 +151,8 @@ Route::middleware(['multi.auth', 'role:traveler'])->group(function () {
     Route::put('/traveler/profile',        [ProfileController::class, 'update']);
     Route::post('/traveler/profile/photo', [ProfileController::class, 'updatePhoto']);
     Route::delete('/traveler/profile',     [ProfileController::class, 'destroy']);
+    Route::get('/traveler/dashboard', [DashboardController::class, 'traveler']);
+    Route::get('/traveler/reviews', [RatingController::class, 'travelerReviews']);
 
     // Payout account management
     Route::get('/traveler/payout-accounts',               [PayoutAccountController::class, 'index']);
@@ -128,8 +178,30 @@ Route::middleware(['multi.auth', 'role:traveler'])->group(function () {
     Route::patch('/traveler/orders/{id}/accept', [TravelerOrderController::class, 'accept']);
     Route::patch('/traveler/orders/{id}/reject', [TravelerOrderController::class, 'reject']);
     Route::patch('/traveler/orders/{id}/status', [TravelerOrderController::class, 'updateStatus']);
-    Route::patch('/traveler/orders/{id}/price', [TravelerOrderController::class, 'updatePrice']);
+    Route::post('/traveler/orders/{id}/price', [TravelerOrderController::class, 'updatePrice']);
     Route::get('/traveler/trips/{tripId}/orders', [TravelerOrderController::class, 'byTrip']);
+
+    // Wallet management
+    Route::get('/traveler/wallet',          [PayoutAccountController::class, 'wallet']);
+    Route::get('/traveler/wallet/income',   [PayoutAccountController::class, 'recentIncome']);
+    Route::get('/traveler/wallet/history',  [PayoutAccountController::class, 'walletHistory']);
+    Route::post('/traveler/wallet/withdraw', [PayoutAccountController::class, 'createWithdraw']);
+    Route::get('/traveler/wallet/withdraws', [PayoutAccountController::class, 'withdrawHistory']);
+
+    // Booster management
+    Route::get('/traveler/boosters/plans',           [BoosterController::class, 'plans']);
+    Route::post('/traveler/boosters/buy',            [BoosterController::class, 'buy']);
+    Route::post('/traveler/boosters/{id}/sync',      [BoosterController::class, 'syncPayment']);
+    Route::post('/traveler/boosters/sync-by-order', [BoosterController::class, 'syncByOrderId']);
+    Route::get('/traveler/boosters/active',          [BoosterController::class, 'active']);
+    Route::get('/traveler/boosters/history',         [BoosterController::class, 'history']);
+
+    //Report (Dispute and Rating) management
+    Route::get('/traveler/ratings', [RatingController::class, 'travelerIndex']);
+    Route::get('/traveler/disputes',              [ReportController::class, 'travelerIndex']);
+    Route::post('/traveler/disputes/{id}/reply',  [ReportController::class, 'travelerReply']);
+    Route::post('/traveler/disputes/{id}/resolve',      [ReportController::class, 'travelerResolve']); 
+
 });
 
 // CUSTOMER 
@@ -145,11 +217,31 @@ Route::middleware(['multi.auth', 'role:customer'])->group(function () {
     Route::post('/customer/orders',            [CustomerOrderController::class, 'store']);
     Route::get('/customer/orders',             [CustomerOrderController::class, 'index']);
     Route::get('/customer/orders/{id}',        [CustomerOrderController::class, 'show']);
-    Route::post('/customer/orders/{id}/payment', [CustomerOrderController::class, 'uploadPayment']);
+    Route::post('/customer/orders/{id}/pay', [PaymentController::class, 'createPayment']);
+    Route::get('/customer/orders/{id}/payment-status', [PaymentController::class, 'checkStatus']);
     Route::patch('/customer/orders/{id}/cancel', [CustomerOrderController::class, 'cancel']);
+
+    // Rating management
+    Route::post('/customer/orders/{id}/rating', [RatingController::class, 'store']);
+    Route::get('/customer/orders/{id}/rating', [RatingController::class, 'show']);
 
     // Get traveler tracking
     Route::get('/trips/available', [TripController::class, 'available']);
     Route::get('/trips/{id}/detail', [TripController::class, 'show']);
     Route::get('/trips/{tripId}/tracking', [TripTrackingController::class, 'customerView']);
+
+    // Payment
+    Route::post('/customer/orders/{id}/payment-sync', [PaymentController::class, 'syncStatus']);
+
+    // Report Customer by transaction
+    Route::post('/customer/orders/{id}/report',    [ReportController::class, 'store']);
+    Route::get('/customer/orders/{id}/report',     [ReportController::class, 'showByTransaction']);
+    Route::get('/customer/orders/{id}/report/answer',   [ReportController::class, 'customerAnswer']); // ← baru
+    // Help management
+    Route::post('/customer/help/tickets',     [HelpController::class, 'store']);
+    Route::get('/customer/help/tickets',      [HelpController::class, 'myTickets']);
 });
+
+// Midtrans notification
+Route::post('/midtrans/notification', [PaymentController::class, 'handleNotification']);
+Route::post('/midtrans/booster/notification', [BoosterController::class, 'handleNotification']);

@@ -11,18 +11,29 @@ class OrderProcess extends Model
 
     protected $fillable = [
         'transaction_id',
+        'step',
+
         'original_item_price',
         'updated_item_price',
         'updated_total_price',
         'receipt_photo',
         'price_notes',
-        'status',
+
+        // existing
+        'accepted_at',
+        'paid_at',
+        'shipped_at',
+        'completed_at',
+        'cancelled_at',
+        'cancel_reason',
     ];
 
     protected $casts = [
-        'original_item_price' => 'decimal:2',
-        'updated_item_price'  => 'decimal:2',
-        'updated_total_price' => 'decimal:2',
+        'accepted_at'  => 'datetime',
+        'paid_at'      => 'datetime',
+        'shipped_at'   => 'datetime',
+        'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function transaction()
