@@ -413,7 +413,7 @@ class BoosterController extends Controller
             ->where('end_date', '<', now())
             ->update(['status' => 'expired']);
 
-        $query = TravelerBooster::with(['traveler:id,name,phone,profile_photo', 'booster'])
+        $query = TravelerBooster::with(['traveler:id,name,phone,profile_photo', 'booster', 'traveler.ratings'])
             ->latest();
 
         if ($request->filled('status')) {
@@ -431,6 +431,7 @@ class BoosterController extends Controller
                 'name'  => $tb->traveler->name,
                 'phone' => $tb->traveler->phone,
                 'photo' => $tb->traveler->profile_photo,
+                'rating' => round($tb->traveler->ratings()->avg('rating') ?? 0, 1),
             ],
             'plan'         => $tb->booster->name,
             'plan_color'   => $tb->booster->color,

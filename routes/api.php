@@ -22,6 +22,8 @@ use App\Http\Controllers\Api\BoosterController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\HelpController;
 use App\Http\Controllers\Api\AdvertisementController;
+use App\Http\Controllers\Api\PlatformWithdrawController;
+use App\Http\Controllers\Api\NotificationController;
 
 // Public 
 Route::get('/settings/public', [SystemSettingController::class, 'publicSettings']);
@@ -30,12 +32,18 @@ Route::get('/faqs', [HelpController::class, 'faqs']);
 Route::post('/user-requests',     [UserRequestController::class, 'store']);
 Route::post('/traveler-requests', [TravelerRequestController::class, 'store']);
 
+// Advertisement
 Route::get('/advertisements/live',            [AdvertisementController::class, 'live']);
 Route::get('/advertisements/packages',        [AdvertisementController::class, 'packages']);
 Route::post('/advertisements/sync-by-order',  [AdvertisementController::class, 'syncByOrder']);  
 Route::post('/advertisements/{id}/sync',       [AdvertisementController::class, 'syncPayment']);
 Route::post('/advertisements/payment/notify',  [AdvertisementController::class, 'handleNotification']);
 Route::post('/advertisements',                 [AdvertisementController::class, 'store']);
+// trip
+Route::get('/trips/available', [TripController::class, 'available']);
+Route::get('/trips/{id}/public',  [TripController::class, 'publicShow']);
+// Faq
+Route::get('/faqs', [HelpController::class, 'faqs']); 
 
 // Auth
 Route::prefix('auth')->group(function () {
@@ -77,6 +85,13 @@ Route::middleware(['multi.auth', 'role:admin'])->prefix('admin')->group(function
     Route::post('/settings/reset/{key}',  [SystemSettingController::class, 'reset']);
     Route::patch('/settings/{key}',       [SystemSettingController::class, 'updateSingle']);
 
+    Route::get   ('/notifications',              [NotificationController::class, 'index']);
+    Route::get   ('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch ('/notifications/read-all',     [NotificationController::class, 'markAllRead']);
+    Route::patch ('/notifications/{id}/read',    [NotificationController::class, 'markRead']);
+    Route::delete('/notifications',              [NotificationController::class, 'destroyAll']);
+    Route::delete('/notifications/{id}',         [NotificationController::class, 'destroy']);
+
     // User & Traveler management
     Route::get('/users',               [UserController::class, 'index']);
     Route::post('/users',              [UserController::class, 'store']);
@@ -116,6 +131,15 @@ Route::middleware(['multi.auth', 'role:admin'])->prefix('admin')->group(function
     Route::get('/wallet/booster', [BoosterController::class, 'adminWallet']);
     Route::get('/wallet/advertisements', [AdvertisementController::class, 'adminWallet']);
 
+    Route::get   ('/platform-withdraw',              [PlatformWithdrawController::class, 'index']);
+    Route::post  ('/platform-withdraw',              [PlatformWithdrawController::class, 'store']);
+    Route::get   ('/platform-withdraw/balance',      [PlatformWithdrawController::class, 'balance']);
+    Route::get   ('/platform-withdraw/{id}',         [PlatformWithdrawController::class, 'show']);
+    Route::patch ('/platform-withdraw/{id}/approve', [PlatformWithdrawController::class, 'approve']);
+    Route::patch ('/platform-withdraw/{id}/complete',[PlatformWithdrawController::class, 'complete']);
+    Route::patch ('/platform-withdraw/{id}/reject',  [PlatformWithdrawController::class, 'reject']);
+    Route::delete('/platform-withdraw/{id}',         [PlatformWithdrawController::class, 'destroy']);
+
     // Get traveler trip data
     Route::get('/routes', [TripController::class, 'routes']);
     // Rating management admin
@@ -153,6 +177,13 @@ Route::middleware(['multi.auth', 'role:traveler'])->group(function () {
     Route::delete('/traveler/profile',     [ProfileController::class, 'destroy']);
     Route::get('/traveler/dashboard', [DashboardController::class, 'traveler']);
     Route::get('/traveler/reviews', [RatingController::class, 'travelerReviews']);
+
+    Route::get   ('/notifications',              [NotificationController::class, 'index']);
+    Route::get   ('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch ('/notifications/read-all',     [NotificationController::class, 'markAllRead']);
+    Route::patch ('/notifications/{id}/read',    [NotificationController::class, 'markRead']);
+    Route::delete('/notifications',              [NotificationController::class, 'destroyAll']);
+    Route::delete('/notifications/{id}',         [NotificationController::class, 'destroy']);
 
     // Payout account management
     Route::get('/traveler/payout-accounts',               [PayoutAccountController::class, 'index']);
@@ -213,6 +244,13 @@ Route::middleware(['multi.auth', 'role:customer'])->group(function () {
     Route::post('/customer/profile/photo',       [ProfileController::class, 'updatePhoto']);
     Route::delete('/customer/profile',           [ProfileController::class, 'destroy']);
 
+    Route::get   ('/notifications',              [NotificationController::class, 'index']);
+    Route::get   ('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::patch ('/notifications/read-all',     [NotificationController::class, 'markAllRead']);
+    Route::patch ('/notifications/{id}/read',    [NotificationController::class, 'markRead']);
+    Route::delete('/notifications',              [NotificationController::class, 'destroyAll']);
+    Route::delete('/notifications/{id}',         [NotificationController::class, 'destroy']);
+
     // Order management
     Route::post('/customer/orders',            [CustomerOrderController::class, 'store']);
     Route::get('/customer/orders',             [CustomerOrderController::class, 'index']);
@@ -226,7 +264,6 @@ Route::middleware(['multi.auth', 'role:customer'])->group(function () {
     Route::get('/customer/orders/{id}/rating', [RatingController::class, 'show']);
 
     // Get traveler tracking
-    Route::get('/trips/available', [TripController::class, 'available']);
     Route::get('/trips/{id}/detail', [TripController::class, 'show']);
     Route::get('/trips/{tripId}/tracking', [TripTrackingController::class, 'customerView']);
 

@@ -28,6 +28,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->enum('dispute_priority',['low','medium','high'])->default('medium');
             $table->enum('dispute_status',['open','under_review','resolved'])->default('open');
+            $table->text('traveler_note')->nullable();
             $table->text('note')->nullable();
             $table->timestamp('resolved_at')->nullable();
             $table->timestamps();

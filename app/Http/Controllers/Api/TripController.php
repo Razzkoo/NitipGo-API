@@ -152,6 +152,11 @@ class TripController extends Controller
         ->where('status', 'active') 
         ->findOrFail($id);
 
+        $isBoosted = \App\Models\TravelerBooster::where('traveler_id', $trip->traveler_id)
+            ->where('status', 'active')
+            ->where('end_date', '>', now())
+            ->exists();
+
         $remaining = $trip->capacity - $trip->used_capacity;
 
         return response()->json([
@@ -171,6 +176,7 @@ class TripController extends Controller
                 'price'         => 'Rp ' . number_format($trip->price, 0, ',', '.') . '/kg',
                 'pricePerKg'    => $trip->price,
                 'notes'         => $trip->description,
+                'is_boosted' => $isBoosted,
                 'traveler'      => [
                     'id'       => $trip->traveler->id,
                     'name'     => $trip->traveler->name,
@@ -194,6 +200,70 @@ class TripController extends Controller
                     'time'    => $trip->collections->first()->collections_time
                                     ? \Carbon\Carbon::parse($trip->collections->first()->collections_time)->format('H:i')
                                     : null,
+                    'mapUrl'  => $trip->collections->first()->map_url,
+                ] : null,
+            ],
+        ]);
+    }
+
+    // Public trips
+    public function publicShow(Request $request, $id)
+    {
+        $trip = Trip::with([
+            'traveler:id,name,phone,profile_photo,city,province',
+            'pickups',
+            'collections',
+        ])
+        ->where('status', 'active')
+        ->findOrFail($id);
+    
+        $remaining  = $trip->capacity - $trip->used_capacity;
+        $isBoosted  = \App\Models\TravelerBooster::where('traveler_id', $trip->traveler_id)
+            ->where('status', 'active')
+            ->where('end_date', '>', now())
+            ->exists();
+    
+        return response()->json([
+            'success' => true,
+            'data'    => [
+                'id'            => $trip->id,
+                'code'          => $trip->code,
+                'from'          => $trip->city,
+                'to'            => $trip->destination,
+                'date'          => $trip->departure_at->format('d M Y'),
+                'time'          => $trip->departure_at->format('H:i') . ' WIB',
+                'arrivalDate'   => $trip->estimated_arrival_at?->format('d M Y'),
+                'arrivalTime'   => $trip->estimated_arrival_at?->format('H:i') . ' WIB',
+                'capacity'      => $remaining > 0 ? "{$remaining} kg tersisa" : "Penuh",
+                'totalCapacity' => "{$trip->capacity} kg",
+                'capacityRaw'   => $remaining,
+                'price'         => 'Rp ' . number_format($trip->price, 0, ',', '.') . '/kg',
+                'pricePerKg'    => $trip->price,
+                'notes'         => $trip->description,
+                'is_boosted'    => $isBoosted,
+                'canOrder'      => $remaining > 0,
+                'traveler'      => [
+                    'id'       => $trip->traveler->id,
+                    'name'     => $trip->traveler->name,
+                    'phone'    => $trip->traveler->phone,
+                    'photo'    => $trip->traveler->profile_photo,
+                    'city'     => $trip->traveler->city,
+                    'province' => $trip->traveler->province,
+                ],
+                'pickup' => $trip->pickups->first() ? [
+                    'name'    => $trip->pickups->first()->name,
+                    'address' => $trip->pickups->first()->address,
+                    'time'    => $trip->pickups->first()->pickup_time
+                        ? \Carbon\Carbon::parse($trip->pickups->first()->pickup_time)->format('H:i')
+                        : null,
+                    'mapUrl'  => $trip->pickups->first()->map_url,
+                ] : null,
+                'collection' => $trip->collections->first() ? [
+                    'name'    => $trip->collections->first()->name,
+                    'address' => $trip->collections->first()->address,
+                    'time'    => $trip->collections->first()->collections_time
+                        ? \Carbon\Carbon::parse($trip->collections->first()->collections_time)->format('H:i')
+                        : null,
                     'mapUrl'  => $trip->collections->first()->map_url,
                 ] : null,
             ],

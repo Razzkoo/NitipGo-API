@@ -23,6 +23,13 @@ return new class extends Migration
                 'completed',
                 'cancelled',
             ])->default('waiting_acceptance');
+            // update final price
+            $table->decimal('original_item_price', 12, 2)->nullable();
+            $table->decimal('updated_item_price', 12, 2)->nullable();
+            $table->decimal('updated_total_price', 12, 2)->nullable();
+            $table->string('receipt_photo')->nullable();
+            $table->text('price_notes')->nullable();
+            //action after update price
             $table->timestamp('accepted_at')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->timestamp('shipped_at')->nullable();
