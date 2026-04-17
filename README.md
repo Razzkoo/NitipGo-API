@@ -86,7 +86,7 @@ Sistem memiliki tiga role: **Admin**, **Traveler**, dan **Customer**.
 
 ```bash
 # 1. Clone repositori
-git clone <repo-url>
+git clone <https://github.com/Razzkoo/NitipGo-API.git>
 cd NitipGo-API
 
 # 2. Install dependensi PHP
@@ -164,8 +164,9 @@ RESEND_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 Daftar di [midtrans.com](https://midtrans.com), masuk ke **Dashboard > Settings > Access Keys**.
 
 ```env
-MIDTRANS_SERVER_KEY=SB-Mid-server-xxxxxxxxxxxxxxxxxxxxxxxx
-MIDTRANS_CLIENT_KEY=SB-Mid-client-xxxxxxxxxxxxxxxxxxxxxxxx
+MIDTRANS_MERCHANT_ID=xxxxxxxx
+MIDTRANS_SERVER_KEY=Mid-server-xxxxxxxxxxxxxxxxxxxxxxxx
+MIDTRANS_CLIENT_KEY=Mid-client-xxxxxxxxxxxxxxxxxxxxxxxx
 MIDTRANS_IS_PRODUCTION=false
 MIDTRANS_IS_SANITIZED=true
 MIDTRANS_IS_3DS=true
@@ -190,7 +191,7 @@ APP_DEBUG=true
 APP_URL=http://localhost:8000
 APP_TIMEZONE=Asia/Jakarta
 
-FRONTEND_URL=http://localhost:5173
+FRONTEND_URL=http://localhost:5173      # frontend url: access vite from NitipGo-web
 
 # Database
 DB_CONNECTION=mysql
