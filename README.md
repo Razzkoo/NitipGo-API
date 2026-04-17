@@ -86,7 +86,7 @@ Sistem memiliki tiga role: **Admin**, **Traveler**, dan **Customer**.
 
 ```bash
 # 1. Clone repositori
-git clone <https://github.com/Razzkoo/NitipGo-API.git>
+git clone <repo>
 cd NitipGo-API
 
 # 2. Install dependensi PHP
@@ -249,24 +249,24 @@ Base URL: `/api`
 | Method | Endpoint | Deskripsi |
 |---|---|---|
 | GET/PUT/POST/DELETE | `/admin/profile` | Manajemen profil admin |
-| GET/PUT/PATCH | `/admin/settings` | System settings |
-| GET/POST/GET/PUT/PATCH/DELETE | `/admin/users/{id?}` | Manajemen user |
+| GET/PUT/POST/PATCH | `/admin/settings` | System settings |
+| GET/POST/PUT/PATCH/DELETE | `/admin/users/{id?}` | Manajemen user |
 | GET/POST/PATCH/DELETE | `/admin/user-requests/{id?}` | Approval pendaftaran user |
-| GET/POST/GET/PUT/PATCH/DELETE | `/admin/travelers/{id?}` | Manajemen traveler |
+| GET/POST/PUT/PATCH/DELETE | `/admin/travelers/{id?}` | Manajemen traveler |
 | GET/POST/PATCH/DELETE | `/admin/traveler-requests/{id?}` | Approval pendaftaran traveler |
 | GET | `/admin/routes` | Daftar rute trip |
-| GET/POST/PUT/PATCH/DELETE | `/admin/boosters/{id?}` | Manajemen paket booster |
+| GET/POST/PUT/PATCH | `/admin/boosters/{id?}` | Manajemen paket booster |
 | GET/PATCH | `/admin/boosters/monitoring` | Monitoring & status booster traveler |
 | GET | `/admin/wallet/booster` | Wallet booster platform |
 | GET | `/admin/wallet/advertisements` | Wallet iklan platform |
-| GET/POST/GET/PATCH/DELETE | `/admin/platform-withdraw/{id?}` | Penarikan saldo platform |
+| GET/POST/PATCH/DELETE | `/admin/platform-withdraw/{id?}` | Penarikan saldo platform |
 | GET/POST/PATCH/DELETE | `/admin/disputes/{id?}` | Manajemen laporan/dispute |
 | GET/POST/PATCH/DELETE | `/admin/help/tickets/{id?}` | Manajemen tiket bantuan |
 | GET/POST/PUT/DELETE | `/admin/help/faqs/{id?}` | Manajemen FAQ |
 | GET/PATCH/DELETE | `/admin/advertisements/{id?}` | Manajemen iklan |
-| GET/PATCH | `/admin/ratings` | Manajemen rating |
+| GET | `/admin/ratings` | Manajemen rating |
 | GET | `/admin/transactions` | Daftar transaksi |
-| GET/PATCH | `/admin/notifications` | Notifikasi in-app admin |
+| GET/PATCH/DELETE | `/admin/notifications` | Notifikasi in-app admin |
 
 ### Traveler (`/traveler/*`)
 | Method | Endpoint | Deskripsi |
@@ -274,12 +274,12 @@ Base URL: `/api`
 | GET/PUT/POST/DELETE | `/traveler/profile` | Manajemen profil |
 | GET | `/traveler/dashboard` | Dashboard traveler |
 | GET/POST/DELETE/PATCH | `/traveler/payout-accounts/{id?}` | Akun payout |
-| GET/POST/GET/PATCH/DELETE | `/traveler/trips/{id?}` | Manajemen trip |
-| POST/POST/POST/GET | `/traveler/trips/{tripId}/tracking/*` | Live tracking |
-| GET/GET/PATCH/PATCH/PATCH/POST | `/traveler/orders/{id?}` | Manajemen order |
-| GET/POST/GET | `/traveler/wallet` | Wallet & riwayat |
+| GET/POST/PATCH/DELETE | `/traveler/trips/{id?}` | Manajemen trip |
+| POST/GET | `/traveler/trips/{tripId}/tracking/*` | Live tracking |
+| GET/POST/PATCH | `/traveler/orders/{id?}` | Manajemen order |
+| GET/POST | `/traveler/wallet` | Wallet & riwayat |
 | POST/GET | `/traveler/wallet/withdraw` | Penarikan saldo |
-| GET/POST/GET/GET | `/traveler/boosters/*` | Manajemen booster |
+| GET/POST | `/traveler/boosters/*` | Manajemen booster |
 | GET/POST | `/traveler/disputes/{id?}` | Dispute/laporan |
 | GET/PATCH/DELETE | `/notifications` | Notifikasi in-app |
 
@@ -287,9 +287,9 @@ Base URL: `/api`
 | Method | Endpoint | Deskripsi |
 |---|---|---|
 | GET/PUT/POST/DELETE | `/customer/profile` | Manajemen profil |
-| POST/GET/GET/PATCH | `/customer/orders/{id?}` | Manajemen order |
+| GET/POST/PATCH | `/customer/orders/{id?}` | Manajemen order |
 | POST/GET | `/customer/orders/{id}/pay` | Pembayaran via Midtrans |
-| POST | `/customer/orders/{id}/rating` | Beri rating traveler |
+| GET/POST | `/customer/orders/{id}/rating` | Beri & lihat rating traveler |
 | POST/GET | `/customer/orders/{id}/report` | Laporan/dispute |
 | POST/GET | `/customer/help/tickets` | Tiket bantuan |
 | GET/PATCH/DELETE | `/notifications` | Notifikasi in-app |
