@@ -164,7 +164,6 @@ RESEND_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 Daftar di [midtrans.com](https://midtrans.com), masuk ke **Dashboard > Settings > Access Keys**.
 
 ```env
-MIDTRANS_MERCHANT_ID=xxxxxxxx
 MIDTRANS_SERVER_KEY=Mid-server-xxxxxxxxxxxxxxxxxxxxxxxx
 MIDTRANS_CLIENT_KEY=Mid-client-xxxxxxxxxxxxxxxxxxxxxxxx
 MIDTRANS_IS_PRODUCTION=false
